@@ -23,8 +23,13 @@ export const AuthProvider = ({ children }) => {
 
     if (error) console.error("Error al obtener perfil:", error);
 
+    // CORRECCIÓN: Si hay datos los combinamos. Si la base de datos bloquea
+    // la lectura (RLS), al menos guardamos los datos básicos de la sesión
+    // para evitar que el usuario se quede atrapado en el Login.
     if (data) {
       setUser({ ...authUser, ...data });
+    } else {
+      setUser(authUser);
     }
     setLoading(false);
   };

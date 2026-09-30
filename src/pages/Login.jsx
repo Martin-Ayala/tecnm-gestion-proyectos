@@ -5,7 +5,6 @@ export default function Login() {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
 
   // Estados del formulario
   const [email, setEmail] = useState('');
@@ -17,13 +16,11 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    setSuccess(null);
 
     if (isLogin) {
       // Lógica de Iniciar Sesión
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) setError(error.message);
-      else setSuccess('¡Inicio de sesión exitoso! (Pronto agregaremos la redirección al Dashboard)');
     } else {
       // Lógica de Registro
       const { error } = await supabase.auth.signUp({
@@ -37,7 +34,6 @@ export default function Login() {
         }
       });
       if (error) setError(error.message);
-      else setSuccess('¡Registro exitoso! Revisa tu base de datos en Supabase.');
     }
     setLoading(false);
   };
@@ -50,7 +46,6 @@ export default function Login() {
         </h2>
 
         {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-4">{error}</div>}
-        {success && <div className="bg-emerald-50 text-emerald-600 p-3 rounded-lg text-sm mb-4">{success}</div>}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {!isLogin && (
