@@ -1,36 +1,42 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import Login from './pages/Login';
+// 1. Importamos el AuthProvider además del useAuth
+import { AuthProvider, useAuth } from './context/AuthContext'; 
 import Dashboard from './pages/Dashboard';
-import { ProtectedRoute } from './components/ProtectedRoute';
+import Home from './pages/Home';
+import Login from './pages/Login'; 
 
-// Este componente evita que un usuario logueado vuelva a ver el Login
-const PublicRoute = ({ children }) => {
-  const { user, loading } = useAuth();
-  if (loading) return <div className="min-h-screen bg-slate-50"></div>;
-  return user ? <Navigate to="/dashboard" replace /> : children;
+const RutaProtegida = ({ children }) => {
+  const { user, loading } = useAuth(); 
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <p className="text-slate-500 font-medium">Verificando credenciales...</p>
+      </div>
+    );
+  }
+  
+  if (!user) return <Navigate to="/" replace />;
+  
+  return children;
 };
 
-function App() {
+export default function App() {
   return (
+    // 2. ENVOLVEMOS TODO EL ENRUTADOR CON EL PROVEEDOR
+    // Esto "enciende" el contexto global para que Login, Home y Dashboard compartan al usuario
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={
-            <PublicRoute>
-              <Login />
-            </PublicRoute>
-          } />
-          
+          <Route path="/" element={<Home />} />
+          <Route path="/login" element={<Login />} />
           <Route path="/dashboard" element={
-            <ProtectedRoute>
+            <RutaProtegida>
               <Dashboard />
-            </ProtectedRoute>
+            </RutaProtegida>
           } />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
   );
 }
-
-export default App;

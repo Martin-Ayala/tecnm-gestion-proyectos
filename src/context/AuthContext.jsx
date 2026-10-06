@@ -7,8 +7,10 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 1. Primero declaramos la función
   const fetchUserProfile = async (authUser) => {
+    // 1. VITAL: Avisar al sistema que empezamos a procesar datos
+    setLoading(true); 
+
     if (!authUser) {
       setUser(null);
       setLoading(false);
@@ -23,18 +25,16 @@ export const AuthProvider = ({ children }) => {
 
     if (error) console.error("Error al obtener perfil:", error);
 
-    // CORRECCIÓN: Si hay datos los combinamos. Si la base de datos bloquea
-    // la lectura (RLS), al menos guardamos los datos básicos de la sesión
-    // para evitar que el usuario se quede atrapado en el Login.
     if (data) {
       setUser({ ...authUser, ...data });
     } else {
       setUser(authUser);
     }
+    
+    // Termina de cargar
     setLoading(false);
   };
 
-  // 2. Luego usamos la función dentro del useEffect
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       fetchUserProfile(session?.user);
@@ -49,7 +49,8 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider value={{ user, loading }}>
-      {!loading && children}
+      {/* 2. VITAL: Dejamos pasar a los children siempre, el guardián de App.jsx decidirá qué mostrar */}
+      {children}
     </AuthContext.Provider>
   );
 };

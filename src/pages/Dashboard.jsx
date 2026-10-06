@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+// Importamos los componentes de la librería de gráficas
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -32,7 +34,7 @@ export default function Dashboard() {
       setLoadingProyectos(true);
       const { data, error } = await supabase
         .from('proyectos')
-        .select('*, investigador:usuarios(nombre_completo)')
+        .select('*, investigador:usuarios!investigador_id(nombre_completo)')
         .order('fecha_creacion', { ascending: false });
 
       if (error) console.error("Error cargando:", error);
@@ -43,17 +45,15 @@ export default function Dashboard() {
     fetchProyectos();
   }, [refresh]);
 
-  // Función CREATE
+  // Funciones CRUD (Mantienen la misma lógica segura)
   const handleCrearProyecto = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     const { error } = await supabase.from('proyectos').insert([
       { titulo: nuevoTitulo, descripcion: nuevaDescripcion, investigador_id: user.id }
     ]);
-
-    if (error) {
-      alert("Hubo un error al crear.");
-    } else {
+    if (error) alert("Hubo un error al crear.");
+    else {
       setIsModalOpen(false);
       setNuevoTitulo('');
       setNuevaDescripcion('');
@@ -62,22 +62,13 @@ export default function Dashboard() {
     setIsSubmitting(false);
   };
 
-  // Función DELETE
   const handleEliminar = async (id) => {
-    // Ventanita de confirmación nativa del navegador
     if (!window.confirm("¿Estás seguro de que deseas eliminar este proyecto de forma permanente?")) return;
-
     const { error } = await supabase.from('proyectos').delete().eq('id', id);
-    
-    if (error) {
-      console.error("Error al eliminar:", error);
-      alert("Error al intentar eliminar el proyecto.");
-    } else {
-      setRefresh((prev) => prev + 1); // Recargamos la lista
-    }
+    if (error) alert("Error al intentar eliminar el proyecto.");
+    else setRefresh((prev) => prev + 1);
   };
 
-  // Preparar Modal de EDITAR
   const abrirModalEdicion = (proyecto) => {
     setProyectoEditando(proyecto.id);
     setEditTitulo(proyecto.titulo);
@@ -86,62 +77,143 @@ export default function Dashboard() {
     setIsEditModalOpen(true);
   };
 
-  // Función UPDATE
   const handleActualizarProyecto = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-
     const { error } = await supabase
       .from('proyectos')
-      .update({
-        titulo: editTitulo,
-        descripcion: editDescripcion,
-        estado: editEstado
-      })
+      .update({ titulo: editTitulo, descripcion: editDescripcion, estado: editEstado })
       .eq('id', proyectoEditando);
-
-    if (error) {
-      console.error("Error al actualizar:", error);
-      alert("Error al guardar los cambios.");
-    } else {
+    if (error) alert("Error al guardar los cambios.");
+    else {
       setIsEditModalOpen(false);
       setRefresh((prev) => prev + 1);
     }
     setIsSubmitting(false);
   };
 
+  // ==========================================
+  // LÓGICA DE MÉTRICAS PARA EL ENTREGABLE 3.4
+  // ==========================================
+  const totalProyectos = proyectos.length;
+  const proyectosActivos = proyectos.filter(p => p.estado === 'Activo').length;
+  const proyectosFinalizados = proyectos.filter(p => p.estado === 'Finalizado').length;
+  const proyectosBorrador = proyectos.filter(p => p.estado === 'Borrador' || !p.estado).length;
+
+  const datosGraficaEstado = [
+    { name: 'Activos', cantidad: proyectosActivos, color: '#10b981' }, // Verde
+    { name: 'Finalizados', cantidad: proyectosFinalizados, color: '#3b82f6' }, // Azul
+    { name: 'Borradores', cantidad: proyectosBorrador, color: '#64748b' } // Gris
+  ];
+
   return (
     <div className="min-h-screen bg-slate-50 relative">
       <nav className="bg-white shadow-sm px-6 py-4 flex justify-between items-center border-b border-slate-200 relative z-10">
-        <h1 className="text-xl font-bold text-blue-900">TecNM Gestión</h1>
+        <h1 className="text-xl font-bold text-blue-900">TecNM <span className="text-blue-600">Gestión Interna</span></h1>
         <div className="flex items-center gap-4">
           <span className="text-sm font-medium text-slate-600">
             {user?.nombre_completo} <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs ml-2">{user?.rol}</span>
           </span>
-          <button onClick={handleLogout} className="text-sm bg-red-50 text-red-600 px-4 py-2 rounded-lg hover:bg-red-100 font-semibold transition-colors">
+          <button onClick={handleLogout} className="text-sm bg-slate-100 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 font-semibold transition-colors">
             Cerrar Sesión
           </button>
         </div>
       </nav>
 
       <main className="p-8 max-w-7xl mx-auto relative z-10">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-slate-800">Panel de Proyectos</h2>
+        
+        {/* ENCABEZADO DEL DASHBOARD */}
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800">Dashboard Analítico</h2>
+            <p className="text-slate-500 text-sm mt-1">Métricas operativas del periodo 2026</p>
+          </div>
           {user?.rol === 'Investigador' && (
-            <button onClick={() => setIsModalOpen(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-semibold transition-colors shadow-sm">
-              + Nuevo Proyecto
+            <button onClick={() => setIsModalOpen(true)} className="bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 font-semibold transition-colors shadow-sm flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
+              Nuevo Proyecto
             </button>
           )}
         </div>
 
+        {/* SECCIÓN DE MÉTRICAS (KPIs) Y GRÁFICAS */}
+        {!loadingProyectos && proyectos.length > 0 && (
+          <div className="mb-12">
+            {/* Tarjetas KPI */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
+                <span className="text-slate-500 text-sm font-medium mb-1">Total Registrados</span>
+                <span className="text-3xl font-bold text-slate-800">{totalProyectos}</span>
+              </div>
+              <div className="bg-white p-6 rounded-xl border border-emerald-100 shadow-sm flex flex-col justify-center">
+                <span className="text-emerald-600 text-sm font-medium mb-1">En Curso (Activos)</span>
+                <span className="text-3xl font-bold text-emerald-700">{proyectosActivos}</span>
+              </div>
+              <div className="bg-white p-6 rounded-xl border border-blue-100 shadow-sm flex flex-col justify-center">
+                <span className="text-blue-600 text-sm font-medium mb-1">Concluidos</span>
+                <span className="text-3xl font-bold text-blue-700">{proyectosFinalizados}</span>
+              </div>
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
+                <span className="text-slate-500 text-sm font-medium mb-1">En Preparación</span>
+                <span className="text-3xl font-bold text-slate-600">{proyectosBorrador}</span>
+              </div>
+            </div>
+
+            {/* Gráficas con Recharts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Gráfica de Anillo */}
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm h-80 flex flex-col">
+                <h3 className="text-slate-700 font-semibold mb-4">Distribución por Estado</h3>
+                <div className="flex-1">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={datosGraficaEstado} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="cantidad">
+                        {datosGraficaEstado.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend verticalAlign="bottom" height={36}/>
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Gráfica de Barras */}
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm h-80 flex flex-col">
+                <h3 className="text-slate-700 font-semibold mb-4">Volumen de Proyectos</h3>
+                <div className="flex-1">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={datosGraficaEstado} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
+                      <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
+                      <Tooltip cursor={{fill: '#f1f5f9'}} />
+                      <Bar dataKey="cantidad" radius={[4, 4, 0, 0]}>
+                        {datosGraficaEstado.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SECCIÓN DE GESTIÓN (GRID DE PROYECTOS) */}
+        <h3 className="text-lg font-bold text-slate-800 mb-6 border-b border-slate-200 pb-2">Gestión de Registros</h3>
+        
         {loadingProyectos ? (
           <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 text-center text-slate-500">
-            Cargando proyectos...
+            Cargando base de datos...
           </div>
         ) : proyectos.length === 0 ? (
           <div className="bg-white p-12 rounded-xl shadow-sm border border-slate-200 text-center flex flex-col items-center">
             <div className="text-slate-400 mb-2 text-4xl">📂</div>
-            <h3 className="text-lg font-medium text-slate-700">No hay proyectos activos</h3>
+            <h3 className="text-lg font-medium text-slate-700">El sistema está vacío</h3>
+            <p className="text-sm text-slate-500 mt-1">Registra el primer proyecto para visualizar métricas.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -161,10 +233,9 @@ export default function Dashboard() {
                 
                 <div className="flex justify-between items-end border-t border-slate-100 pt-4 mt-auto">
                   <div className="text-xs text-slate-500">
-                    Investigador: <span className="font-medium text-slate-700 block">{proyecto.investigador?.nombre_completo || 'No asignado'}</span>
+                    Investigador: <span className="font-medium text-slate-700 block uppercase">{proyecto.investigador?.nombre_completo || 'No asignado'}</span>
                   </div>
                   
-                  {/* Botones de UPDATE y DELETE (Solo visibles si eres el dueño) */}
                   {user?.id === proyecto.investigador_id && (
                     <div className="flex gap-3">
                       <button onClick={() => abrirModalEdicion(proyecto)} className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors">
