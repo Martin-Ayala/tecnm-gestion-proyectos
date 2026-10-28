@@ -28,7 +28,8 @@ export default function Dashboard() {
   const [nuevaDescripcion, setNuevaDescripcion] = useState('');
   const [nuevoObjetivo, setNuevoObjetivo] = useState(''); 
   const [nuevoPreRequisitos, setNuevoPreRequisitos] = useState(''); 
-  const [nuevoRequisitos, setNuevoRequisitos] = useState(''); 
+  const [nuevoRequisitos, setNuevoRequisitos] = useState('');
+  const [cuposRequeridos, setCuposRequeridos] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -39,6 +40,7 @@ export default function Dashboard() {
   const [editPreRequisitos, setEditPreRequisitos] = useState(''); 
   const [editRequisitos, setEditRequisitos] = useState(''); 
   const [editEstado, setEditEstado] = useState('');
+  const [editCupos, setEditCupos] = useState(1);
 
   const [isPostulacionesModalOpen, setIsPostulacionesModalOpen] = useState(false);
   const [postulaciones, setPostulaciones] = useState([]);
@@ -54,10 +56,14 @@ export default function Dashboard() {
       if (!user) return;
       setLoadingDatos(true);
 
-      // 1. CARGAMOS TODOS LOS PROYECTOS (Para métricas y catálogo general)
+      // 1. CARGAMOS PROYECTOS JUNTO CON SUS POSTULACIONES (Para calcular cupos ocupados)
       const { data: dataProyectos, error: errProyectos } = await supabase
         .from('proyectos')
-        .select('*, investigador:usuarios!investigador_id(nombre_completo)')
+        .select(`
+          *, 
+          investigador:usuarios!investigador_id(nombre_completo),
+          postulaciones:postulaciones!id_proyecto(id, estado)
+        `)
         .order('fecha_creacion', { ascending: false });
 
       if (errProyectos) console.error("Error cargando proyectos:", errProyectos);
@@ -91,16 +97,24 @@ export default function Dashboard() {
     setIsSubmitting(true);
     const { error } = await supabase.from('proyectos').insert([
       { 
-        titulo: nuevoTitulo, descripcion: nuevaDescripcion, objetivo: nuevoObjetivo,
-        pre_requisitos: nuevoPreRequisitos, requisitos: nuevoRequisitos,
-        estado: 'En preparación', investigador_id: user.id 
+        titulo: nuevoTitulo, 
+        descripcion: nuevaDescripcion, 
+        objetivo: nuevoObjetivo,
+        pre_requisitos: nuevoPreRequisitos, 
+        requisitos: nuevoRequisitos,
+        estado: 'En preparación', 
+        investigador_id: user.id,
+        cupos_requeridos: cuposRequeridos
       }
     ]);
-    if (error) alert("Hubo un error al crear.");
-    else {
+
+    if (error) {
+      alert(`Error al crear: ${error.message} (${error.details || error.hint || ''})`);
+      console.error("Detalle del error:", error);
+    } else {
       setIsModalOpen(false);
       setNuevoTitulo(''); setNuevaDescripcion(''); setNuevoObjetivo('');
-      setNuevoPreRequisitos(''); setNuevoRequisitos('');
+      setNuevoPreRequisitos(''); setNuevoRequisitos(''); setCuposRequeridos(1);
       setRefresh(prev => prev + 1); 
     }
     setIsSubmitting(false);
@@ -114,9 +128,14 @@ export default function Dashboard() {
   };
 
   const abrirModalEdicion = (proyecto) => {
-    setProyectoEditando(proyecto.id); setEditTitulo(proyecto.titulo); setEditDescripcion(proyecto.descripcion || '');
-    setEditObjetivo(proyecto.objetivo || ''); setEditPreRequisitos(proyecto.pre_requisitos || '');
-    setEditRequisitos(proyecto.requisitos || ''); setEditEstado(proyecto.estado === 'Borrador' ? 'En preparación' : (proyecto.estado || 'En preparación'));
+    setProyectoEditando(proyecto.id); 
+    setEditTitulo(proyecto.titulo); 
+    setEditDescripcion(proyecto.descripcion || '');
+    setEditObjetivo(proyecto.objetivo || ''); 
+    setEditPreRequisitos(proyecto.pre_requisitos || '');
+    setEditRequisitos(proyecto.requisitos || ''); 
+    setEditEstado(proyecto.estado === 'Borrador' ? 'En preparación' : (proyecto.estado || 'En preparación'));
+    setEditCupos(proyecto.cupos_requeridos || 1);
     setIsEditModalOpen(true);
   };
 
@@ -124,9 +143,15 @@ export default function Dashboard() {
     e.preventDefault();
     setIsSubmitting(true);
     const { error } = await supabase.from('proyectos').update({ 
-        titulo: editTitulo, descripcion: editDescripcion, objetivo: editObjetivo,
-        pre_requisitos: editPreRequisitos, requisitos: editRequisitos, estado: editEstado 
+        titulo: editTitulo, 
+        descripcion: editDescripcion, 
+        objetivo: editObjetivo,
+        pre_requisitos: editPreRequisitos, 
+        requisitos: editRequisitos, 
+        estado: editEstado,
+        cupos_requeridos: editCupos
       }).eq('id', proyectoEditando);
+      
     if (error) alert("Error al guardar los cambios.");
     else { setIsEditModalOpen(false); setRefresh(prev => prev + 1); }
     setIsSubmitting(false);
@@ -154,8 +179,8 @@ export default function Dashboard() {
       alert("Error al actualizar el estado.");
     } else {
       setPostulaciones(postulaciones.map(p => p.id === postulacionId ? { ...p, estado: nuevoEstado } : p));
+      setRefresh(prev => prev + 1); // Refrescar catálogo para recalcular barras de cupos
 
-      // Inserta la notificación para el alumno
       if (post?.id_estudiante) {
         await supabase.from('notificaciones').insert([
           {
@@ -213,15 +238,12 @@ export default function Dashboard() {
 
       <main className="p-6 md:p-8 max-w-7xl mx-auto relative z-10">
         
-        {/* ========================================== */}
-        {/* SECCIÓN 1: MÉTRICAS Y CABECERA (PARA TODOS) */}
-        {/* ========================================== */}
+        {/* SECCIÓN 1: MÉTRICAS Y CABECERA */}
         <div className="flex justify-between items-center mb-8">
           <div>
             <h2 className="text-2xl font-bold text-slate-800">Dashboard Analítico</h2>
             <p className="text-slate-500 text-sm mt-1">Métricas operativas del periodo 2026</p>
           </div>
-          {/* Admin y Docentes pueden crear proyectos */}
           {(user?.rol === 'Investigador' || user?.rol === 'Administrador') && (
             <button onClick={() => setIsModalOpen(true)} className="bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 font-semibold transition-colors shadow-sm flex items-center gap-2">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
@@ -287,9 +309,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ========================================== */}
         {/* SECCIÓN 2: MIS POSTULACIONES (SOLO ESTUDIANTE) */}
-        {/* ========================================== */}
         {user?.rol === 'Estudiante' && (
           <div className="mb-12">
             <h3 className="text-lg font-bold text-slate-800 mb-6 border-b border-slate-200 pb-2">Mis Postulaciones</h3>
@@ -391,7 +411,7 @@ export default function Dashboard() {
         </div>
 
         {/* ========================================== */}
-        {/* SECCIÓN 3: CATÁLOGO DE PROYECTOS (PARA TODOS) */}
+        {/* SECCIÓN 3: CATÁLOGO DE PROYECTOS CON CUPOS */}
         {/* ========================================== */}
         <h3 className="text-lg font-bold text-slate-800 mb-6 border-b border-slate-200 pb-2">Catálogo de Proyectos</h3>
         
@@ -413,42 +433,75 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {proyectosFiltrados.map((proyecto) => (
-              <div key={proyecto.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all flex flex-col h-full">
-                <div className="flex justify-between items-start mb-4 gap-2">
-                  <h3 className="font-bold text-lg text-slate-800 leading-tight">{proyecto.titulo}</h3>
-                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium border flex-shrink-0 ${
-                    proyecto.estado?.toLowerCase() === 'activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                    proyecto.estado?.toLowerCase() === 'finalizado' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                    'bg-slate-100 text-slate-700 border-slate-200'
-                  }`}>
-                    {proyecto.estado === 'Borrador' ? 'En preparación' : (proyecto.estado || 'En preparación')}
-                  </span>
-                </div>
-                <p className="text-slate-600 text-sm mb-6 line-clamp-3 flex-grow">{proyecto.descripcion}</p>
-                
-                <div className="flex justify-between items-end border-t border-slate-100 pt-4 mt-auto">
-                  <div className="text-xs text-slate-500">
-                    Investigador: <span className="font-medium text-slate-700 block uppercase">{proyecto.investigador?.nombre_completo || 'No asignado'}</span>
+            {proyectosFiltrados.map((proyecto) => {
+              // CÁLCULO DE CUPOS
+              const aceptados = proyecto.postulaciones 
+                ? proyecto.postulaciones.filter(p => p.estado === 'Aceptado').length 
+                : 0;
+              const cuposTotales = proyecto.cupos_requeridos || 1;
+              const estaLleno = aceptados >= cuposTotales;
+              const porcentaje = Math.min(100, Math.round((aceptados / cuposTotales) * 100));
+
+              return (
+                <div key={proyecto.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all flex flex-col h-full">
+                  <div className="flex justify-between items-start mb-3 gap-2">
+                    <h3 className="font-bold text-lg text-slate-800 leading-tight">{proyecto.titulo}</h3>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {estaLleno && (
+                        <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-red-100 text-red-700 border border-red-200">
+                          Lleno
+                        </span>
+                      )}
+                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium border ${
+                        proyecto.estado?.toLowerCase() === 'activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                        proyecto.estado?.toLowerCase() === 'finalizado' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                        'bg-slate-100 text-slate-700 border-slate-200'
+                      }`}>
+                        {proyecto.estado === 'Borrador' ? 'En preparación' : (proyecto.estado || 'En preparación')}
+                      </span>
+                    </div>
                   </div>
+
+                  <p className="text-slate-600 text-sm mb-4 line-clamp-3 flex-grow">{proyecto.descripcion}</p>
                   
-                  <div className="flex gap-3 items-center flex-wrap justify-end">
-                    <Link to={`/proyecto/${proyecto.id}`} className="text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors">
-                      Ver Detalle
-                    </Link>
+                  {/* BARRA DE CUPOS DISPONIBLES */}
+                  <div className="mb-4 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                    <div className="flex justify-between items-center text-xs mb-1.5">
+                      <span className="font-medium text-slate-600">Cupos de Residentes:</span>
+                      <span className={`font-bold ${estaLleno ? 'text-red-600' : 'text-blue-600'}`}>
+                        {aceptados} / {cuposTotales} {estaLleno ? '(Sin cupo)' : 'ocupados'}
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full transition-all duration-300 ${estaLleno ? 'bg-red-500' : 'bg-blue-600'}`}
+                        style={{ width: `${porcentaje}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-end border-t border-slate-100 pt-4 mt-auto">
+                    <div className="text-xs text-slate-500">
+                      Investigador: <span className="font-medium text-slate-700 block uppercase">{proyecto.investigador?.nombre_completo || 'No asignado'}</span>
+                    </div>
                     
-                    {/* El Administrador o el Creador del proyecto pueden editar/borrar */}
-                    {(user?.id === proyecto.investigador_id || user?.rol === 'Administrador') && (
-                      <>
-                        <button onClick={() => abrirModalPostulaciones(proyecto)} className="text-sm font-semibold text-purple-600 hover:text-purple-800 transition-colors">Solicitudes</button>
-                        <button onClick={() => abrirModalEdicion(proyecto)} className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors">Editar</button>
-                        <button onClick={() => handleEliminar(proyecto.id)} className="text-sm font-semibold text-red-500 hover:text-red-700 transition-colors">Borrar</button>
-                      </>
-                    )}
+                    <div className="flex gap-2.5 items-center flex-wrap justify-end">
+                      <Link to={`/proyecto/${proyecto.id}`} className="text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors">
+                        Ver Detalle
+                      </Link>
+                      
+                      {(user?.id === proyecto.investigador_id || user?.rol === 'Administrador') && (
+                        <>
+                          <button onClick={() => abrirModalPostulaciones(proyecto)} className="text-sm font-semibold text-purple-600 hover:text-purple-800 transition-colors">Solicitudes</button>
+                          <button onClick={() => abrirModalEdicion(proyecto)} className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors">Editar</button>
+                          <button onClick={() => handleEliminar(proyecto.id)} className="text-sm font-semibold text-red-500 hover:text-red-700 transition-colors">Borrar</button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>
@@ -553,6 +606,15 @@ export default function Dashboard() {
                     <label className="block text-sm font-medium text-slate-700 mb-1">Requisitos</label>
                     <textarea required rows="2" value={nuevoRequisitos} onChange={(e) => setNuevoRequisitos(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Límite de Alumnos Permitidos</label>
+                    <input 
+                      type="number" min="1" max="10" required 
+                      value={cuposRequeridos} 
+                      onChange={(e) => setCuposRequeridos(parseInt(e.target.value))} 
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+                    />
+                  </div>
                   <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
                     <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg">Cancelar</button>
                     <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-blue-600 text-white font-medium hover:bg-blue-700 rounded-lg disabled:opacity-50">Guardar</button>
@@ -589,6 +651,15 @@ export default function Dashboard() {
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Requisitos</label>
                     <textarea required rows="2" value={editRequisitos} onChange={(e) => setEditRequisitos(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Límite de Alumnos Permitidos</label>
+                    <input 
+                      type="number" min="1" max="10" required 
+                      value={editCupos} 
+                      onChange={(e) => setEditCupos(parseInt(e.target.value))} 
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Estado del Proyecto</label>

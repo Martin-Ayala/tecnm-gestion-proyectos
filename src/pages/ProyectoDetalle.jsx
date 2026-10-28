@@ -17,7 +17,7 @@ const InfoBox = ({ titulo, texto }) => (
   </div>
 );
 
-// 2. COMPONENTE RenderizarEntregables (Maneja el renderizado de las tarjetas)
+// 2. COMPONENTE RenderizarEntregables
 const RenderizarEntregables = ({ lista, tituloLista, user, investigadorId, onCalificar, onEliminar }) => (
   <div className="mb-6">
     <h4 className="text-blue-400 font-bold mb-3 border-b border-slate-700 pb-1">{tituloLista}</h4>
@@ -39,7 +39,6 @@ const RenderizarEntregables = ({ lista, tituloLista, user, investigadorId, onCal
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <h4 className="text-slate-200 font-bold text-base">{tarea.titulo_tarea}</h4>
                     
-                    {/* ETIQUETA VISUAL DEL TIPO DE DOCUMENTO */}
                     {tarea.tipo_entregable && tarea.tipo_entregable !== 'Avance Libre' && (
                       <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded font-bold ${
                         tarea.tipo_entregable === 'Reporte Final' 
@@ -65,9 +64,10 @@ const RenderizarEntregables = ({ lista, tituloLista, user, investigadorId, onCal
                     )}
                   </div>
 
-                  {esDocente && tarea.estudiante && (
+                  {/* Nombre visible tanto para docentes como para compañeros de equipo */}
+                  {tarea.estudiante && (
                     <p className="text-xs text-slate-300 mt-1 font-medium">
-                      Alumno: <span className="font-semibold text-blue-300 uppercase">{tarea.estudiante.nombre_completo}</span>
+                      Entregado por: <span className="font-semibold text-blue-300 uppercase">{tarea.estudiante.nombre_completo}</span>
                     </p>
                   )}
                   <p className="text-xs text-slate-500 mt-0.5">
@@ -86,7 +86,7 @@ const RenderizarEntregables = ({ lista, tituloLista, user, investigadorId, onCal
                     Ver Documento
                   </a>
 
-                  {/* BOTÓN DE ELIMINAR PARA EL ALUMNO O DOCENTE */}
+                  {/* Solo el dueño del archivo o el docente/admin pueden eliminarlo */}
                   {(esDueno || esDocente) && (
                     <button 
                       onClick={() => onEliminar(tarea)} 
@@ -106,7 +106,6 @@ const RenderizarEntregables = ({ lista, tituloLista, user, investigadorId, onCal
                 </div>
               )}
 
-              {/* BOTONES DE REVISIÓN DEL DOCENTE */}
               {esDocente && (
                 <div className="flex gap-2 pt-2 border-t border-slate-700/50 justify-end mt-1">
                   {!estaAprobado ? (
@@ -144,6 +143,7 @@ export default function ProyectoDetalle() {
   
   const [yaPostulado, setYaPostulado] = useState(null); 
   const [postulando, setPostulando] = useState(false);
+  const [alumnosAceptados, setAlumnosAceptados] = useState(0);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [mensaje, setMensaje] = useState('');
@@ -159,6 +159,7 @@ export default function ProyectoDetalle() {
 
   useEffect(() => {
     const fetchDatos = async () => {
+      // 1. Cargar Proyecto
       const { data: dataProyecto, error: errorProyecto } = await supabase
         .from('proyectos')
         .select('*, investigador:usuarios!investigador_id(nombre_completo)')
@@ -168,6 +169,16 @@ export default function ProyectoDetalle() {
       if (errorProyecto) console.error("Error al cargar proyecto:", errorProyecto);
       else setProyecto(dataProyecto);
 
+      // 2. Contar alumnos aceptados (cupos)
+      const { count: countAceptados } = await supabase
+        .from('postulaciones')
+        .select('*', { count: 'exact', head: true })
+        .eq('id_proyecto', id)
+        .eq('estado', 'Aceptado');
+      
+      setAlumnosAceptados(countAceptados || 0);
+
+      // 3. Cargar estado de postulación del estudiante logueado
       if (user?.rol === 'Estudiante') {
         const { data: dataPostulacion } = await supabase
           .from('postulaciones')
@@ -178,18 +189,14 @@ export default function ProyectoDetalle() {
         if (dataPostulacion) setYaPostulado(dataPostulacion.estado); 
       }
 
+      // 4. Cargar TODOS los entregables del proyecto (área compartida para el equipo)
       if (user) {
-        let query = supabase
+        const { data: dataEntregables } = await supabase
           .from('tareas_entregables')
           .select('*, estudiante:usuarios!id_estudiante(nombre_completo)')
           .eq('id_proyecto', id)
           .order('creado_en', { ascending: false });
-        
-        if (user.rol === 'Estudiante') {
-          query = query.eq('id_estudiante', user.id);
-        }
 
-        const { data: dataEntregables } = await query;
         if (dataEntregables) setEntregables(dataEntregables);
       }
       setLoading(false);
@@ -310,11 +317,9 @@ export default function ProyectoDetalle() {
     }
   };
 
-  // NUEVA FUNCIÓN: ELIMINAR TAREA Y ARCHIVO FÍSICO
   const handleEliminarTarea = async (tarea) => {
     if (!window.confirm(`¿Estás seguro de eliminar el entregable "${tarea.titulo_tarea}"? Esta acción no se puede deshacer.`)) return;
 
-    // 1. Si el archivo está alojado en Supabase Storage, lo borramos primero
     if (tarea.archivo_adjunto_url && tarea.archivo_adjunto_url.includes('supabase.co/storage')) {
       const urlParts = tarea.archivo_adjunto_url.split('/');
       const fileName = urlParts[urlParts.length - 1];
@@ -323,7 +328,6 @@ export default function ProyectoDetalle() {
       if (errStorage) console.error("Error al borrar archivo de Storage:", errStorage);
     }
 
-    // 2. Borramos el registro de la base de datos
     const { error } = await supabase.from('tareas_entregables').delete().eq('id', tarea.id);
     
     if (error) {
@@ -363,8 +367,16 @@ export default function ProyectoDetalle() {
               <InfoBox titulo="Pre-requisitos" texto={proyecto.pre_requisitos} />
               <InfoBox titulo="Requisitos" texto={proyecto.requisitos} />
               
+              {/* VISUALIZACIÓN DE CUPOS */}
               <div className="mt-8 pt-4 border-t border-slate-100 text-sm flex flex-col md:flex-row justify-between items-center gap-4">
-                <div className="text-slate-500">Investigador responsable: <span className="font-semibold text-slate-700 uppercase">{proyecto.investigador?.nombre_completo}</span></div>
+                <div className="flex flex-col gap-1 text-center md:text-left w-full md:w-auto">
+                  <div className="text-slate-500">Investigador: <span className="font-semibold text-slate-700 uppercase">{proyecto.investigador?.nombre_completo}</span></div>
+                  <div className="text-slate-500">
+                    Cupos Ocupados: <span className={`font-bold ${alumnosAceptados >= (proyecto.cupos_requeridos || 1) ? 'text-red-600' : 'text-blue-600'}`}>
+                      {alumnosAceptados} / {proyecto.cupos_requeridos || 1}
+                    </span>
+                  </div>
+                </div>
                 
                 {user?.rol === 'Estudiante' && proyecto.estado?.toLowerCase() !== 'finalizado' && (
                   <div>
@@ -382,8 +394,10 @@ export default function ProyectoDetalle() {
                       <span className="bg-red-100 text-red-800 px-4 py-2 rounded-md font-semibold flex items-center gap-2 shadow-sm"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg> Rechazado</span>
                     ) : yaPostulado === 'Pendiente' ? (
                       <span className="bg-amber-100 text-amber-800 px-4 py-2 rounded-md font-semibold flex items-center gap-2 shadow-sm"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> En Revisión</span>
-                    ) : (
+                    ) : alumnosAceptados < (proyecto.cupos_requeridos || 1) ? (
                       <button onClick={() => setIsModalOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-md font-semibold transition-colors shadow-sm">Postularme a este proyecto</button>
+                    ) : (
+                      <span className="bg-slate-100 text-slate-500 px-4 py-2 rounded-md font-bold flex items-center gap-2 shadow-sm border border-slate-200">🔒 Cupo Lleno</span>
                     )}
                   </div>
                 )}
@@ -392,7 +406,7 @@ export default function ProyectoDetalle() {
           </div>
         </div>
 
-        {/* ESPACIO DE TRABAJO Y ENTREGABLES */}
+        {/* ESPACIO DE TRABAJO Y ENTREGABLES COMPARTIDO */}
         {(yaPostulado === 'Aceptado' || user?.id === proyecto.investigador_id || user?.rol === 'Administrador') && (
           <div className="bg-slate-900 rounded-xl shadow-lg border border-slate-700 overflow-hidden">
             <div className="p-6 border-b border-slate-700 bg-slate-800">
@@ -402,7 +416,7 @@ export default function ProyectoDetalle() {
               </h2>
               <p className="text-slate-400 text-sm mt-1">
                 {user?.rol === 'Estudiante' 
-                  ? "Sube tus reportes oficiales y bitácoras de avance." 
+                  ? "Consulta los avances del equipo y sube tus reportes oficiales o bitácoras." 
                   : "Revisa, retroalimenta y califica los avances y reportes de tus residentes."}
               </p>
             </div>
@@ -451,7 +465,7 @@ export default function ProyectoDetalle() {
                 </div>
               )}
 
-              {/* Listado de Entregas Dividido */}
+              {/* Listado de Entregas Visible para el equipo */}
               <div className={gridClassNames}>
                 <RenderizarEntregables 
                   lista={entregables.filter(t => t.tipo_entregable === 'Reporte Preliminar' || t.tipo_entregable === 'Reporte Final')} 
