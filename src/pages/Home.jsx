@@ -18,7 +18,7 @@ export default function Home() {
 
             if (error) console.error("Error cargando proyectos públicos:", error);
             else setProyectos(data);
-            
+
             setLoading(false);
         };
         fetchProyectosPublicos();
@@ -39,7 +39,7 @@ export default function Home() {
                             <a href="#fechas" className="text-slate-600 hover:text-blue-600 transition-colors">Fechas Importantes</a>
                         </div>
                     </div>
-                    
+
                     {/* 3. Lógica dinámica: Cambia la ruta y el texto dependiendo de si hay usuario */}
                     <Link
                         to={user ? "/dashboard" : "/login"}
@@ -89,9 +89,11 @@ export default function Home() {
                                     <p><span className="text-slate-500">Investigador:</span> <span className="text-slate-700 font-medium uppercase">{proyecto.investigador?.nombre_completo}</span></p>
                                     <p><span className="text-slate-500">Estado:</span> <span className="text-emerald-600 font-medium">Disponible</span></p>
                                 </div>
-                                <button className="w-full py-2.5 bg-slate-50 text-blue-600 border border-slate-200 font-medium rounded-md hover:bg-blue-50 transition-colors text-sm">
+                                <Link
+                                    to={`/proyecto/${proyecto.id}`}
+                                    className="w-full block text-center py-2.5 bg-slate-50 text-blue-600 border border-slate-200 font-medium rounded-md hover:bg-blue-50 transition-colors text-sm">
                                     Ver Detalle
-                                </button>
+                                </Link>
                             </div>
                         ))}
                     </div>

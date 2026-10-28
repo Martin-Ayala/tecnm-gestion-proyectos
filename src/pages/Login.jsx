@@ -119,6 +119,7 @@ export default function Login() {
               placeholder="usuario@tecnm.mx"
             />
           </div>
+          
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Contraseña</label>
             <input 
@@ -129,6 +130,15 @@ export default function Login() {
               className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
               placeholder="••••••••"
             />
+            
+            {/* ENLACE DE RECUPERACIÓN DE CONTRASEÑA (Solo visible en Login) */}
+            {isLogin && (
+              <div className="text-right mt-2">
+                <Link to="/recuperar-password" className="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">
+                  ¿Olvidaste tu contraseña?
+                </Link>
+              </div>
+            )}
           </div>
 
           <button 

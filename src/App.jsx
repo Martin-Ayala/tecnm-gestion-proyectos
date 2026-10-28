@@ -1,13 +1,17 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 // 1. Importamos el AuthProvider además del useAuth
-import { AuthProvider, useAuth } from './context/AuthContext'; 
+import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
 import Home from './pages/Home';
-import Login from './pages/Login'; 
+import Login from './pages/Login';
+import ProyectoDetalle from './pages/ProyectoDetalle';
+import RecuperarPassword from './pages/RecuperarPassword';
+import ActualizarPassword from './pages/ActualizarPassword';
+
 
 const RutaProtegida = ({ children }) => {
-  const { user, loading } = useAuth(); 
-  
+  const { user, loading } = useAuth();
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -15,9 +19,9 @@ const RutaProtegida = ({ children }) => {
       </div>
     );
   }
-  
+
   if (!user) return <Navigate to="/" replace />;
-  
+
   return children;
 };
 
@@ -30,6 +34,9 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/recuperar-password" element={<RecuperarPassword />} />
+<Route path="/actualizar-password" element={<ActualizarPassword />} />
+          <Route path="/proyecto/:id" element={<ProyectoDetalle />} />
           <Route path="/dashboard" element={
             <RutaProtegida>
               <Dashboard />
