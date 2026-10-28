@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../context/AuthContext'; // <-- 1. Importamos tu contexto
+import { useAuth } from '../context/AuthContext';
 
 export default function Home() {
     const [proyectos, setProyectos] = useState([]);
     const [loading, setLoading] = useState(true);
-    const { user } = useAuth(); // <-- 2. Extraemos al usuario para saber si hay sesión activa
+    const { user } = useAuth();
+    
+    // Estado para la barra de búsqueda
+    const [busqueda, setBusqueda] = useState('');
 
     useEffect(() => {
         const fetchProyectosPublicos = async () => {
@@ -24,6 +27,12 @@ export default function Home() {
         fetchProyectosPublicos();
     }, []);
 
+    // Lógica de filtrado en tiempo real
+    const proyectosFiltrados = proyectos.filter((proy) => {
+        return proy.titulo?.toLowerCase().includes(busqueda.toLowerCase()) ||
+               proy.investigador?.nombre_completo?.toLowerCase().includes(busqueda.toLowerCase());
+    });
+
     return (
         <div className="min-h-screen bg-slate-50 text-slate-600 font-sans">
             {/* BARRA DE NAVEGACIÓN */}
@@ -40,7 +49,6 @@ export default function Home() {
                         </div>
                     </div>
 
-                    {/* 3. Lógica dinámica: Cambia la ruta y el texto dependiendo de si hay usuario */}
                     <Link
                         to={user ? "/dashboard" : "/login"}
                         className="flex items-center gap-2 bg-blue-50 text-blue-600 border border-blue-200 px-5 py-2 rounded-md font-medium hover:bg-blue-600 hover:text-white transition-all text-sm"
@@ -50,18 +58,20 @@ export default function Home() {
                 </div>
             </nav>
 
-            {/* HEADER / BUSCADOR */}
-            <header className="max-w-7xl mx-auto px-6 py-12 md:py-20 text-center md:text-left">
+            {/* HEADER / BUSCADOR CENTRADO */}
+            <header className="max-w-7xl mx-auto px-6 py-12 md:py-20 flex flex-col items-center text-center">
                 <h2 className="text-3xl md:text-5xl font-bold text-slate-800 mb-8">
                     Propuestas de Investigación 2026
                 </h2>
-                <div className="flex flex-col md:flex-row gap-4 max-w-3xl">
+                <div className="flex flex-col md:flex-row gap-4 w-full max-w-2xl">
                     <input
                         type="text"
-                        placeholder="Búsqueda de propuestas o investigadores..."
-                        className="flex-1 bg-white border border-slate-300 rounded-md px-4 py-3 text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder-slate-400"
+                        value={busqueda}
+                        onChange={(e) => setBusqueda(e.target.value)}
+                        placeholder="Buscar por propuesta o investigador..."
+                        className="flex-1 bg-white border border-slate-300 rounded-md px-4 py-3 text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder-slate-400 shadow-sm"
                     />
-                    <button className="bg-blue-600 border border-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors font-medium">
+                    <button className="bg-blue-600 border border-blue-600 text-white px-8 py-3 rounded-md hover:bg-blue-700 transition-colors font-medium shadow-sm">
                         Buscar
                     </button>
                 </div>
@@ -77,9 +87,13 @@ export default function Home() {
                     <div className="text-center py-20 text-slate-500 bg-white border border-slate-200 rounded-lg">
                         Aún no hay propuestas activas publicadas para este periodo.
                     </div>
+                ) : proyectosFiltrados.length === 0 ? (
+                    <div className="text-center py-20 text-slate-500 bg-white border border-slate-200 rounded-lg">
+                        No se encontraron proyectos que coincidan con "{busqueda}".
+                    </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {proyectos.map((proyecto) => (
+                        {proyectosFiltrados.map((proyecto) => (
                             <div key={proyecto.id} className="bg-white border border-slate-200 rounded-xl p-6 hover:shadow-lg transition-all flex flex-col h-full">
                                 <h4 className="text-lg font-bold text-slate-800 text-center mb-6 leading-snug">
                                     {proyecto.titulo}
