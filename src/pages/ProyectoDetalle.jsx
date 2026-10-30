@@ -4,7 +4,6 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import NotificacionesBell from "../components/NotificacionesBell";
 
-// 1. COMPONENTE InfoBox
 const InfoBox = ({ titulo, texto }) => (
   <div className="bg-[#f0f7ff] border border-blue-200 rounded-md p-4 flex gap-3">
     <svg className="w-6 h-6 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -17,7 +16,6 @@ const InfoBox = ({ titulo, texto }) => (
   </div>
 );
 
-// 2. COMPONENTE RenderizarEntregables
 const RenderizarEntregables = ({ lista, tituloLista, user, investigadorId, onCalificar, onEliminar }) => (
   <div className="mb-6">
     <h4 className="text-blue-400 font-bold mb-3 border-b border-slate-700 pb-1">{tituloLista}</h4>
@@ -38,87 +36,41 @@ const RenderizarEntregables = ({ lista, tituloLista, user, investigadorId, onCal
                 <div>
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <h4 className="text-slate-200 font-bold text-base">{tarea.titulo_tarea}</h4>
-                    
                     {tarea.tipo_entregable && tarea.tipo_entregable !== 'Avance Libre' && (
-                      <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded font-bold ${
-                        tarea.tipo_entregable === 'Reporte Final' 
-                          ? 'bg-orange-900/80 text-orange-300 border border-orange-700' 
-                          : 'bg-purple-900/80 text-purple-300 border border-purple-700'
-                      }`}>
+                      <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded font-bold ${tarea.tipo_entregable === 'Reporte Final' ? 'bg-orange-900/80 text-orange-300 border border-orange-700' : 'bg-purple-900/80 text-purple-300 border border-purple-700'}`}>
                         {tarea.tipo_entregable}
                       </span>
                     )}
-
-                    <span className={`text-xs px-2.5 py-0.5 rounded font-semibold ${
-                      estaAprobado ? 'bg-emerald-900/80 text-emerald-300 border border-emerald-600' :
-                      tarea.estado === 'Corregir' ? 'bg-red-900/80 text-red-300 border border-red-600' :
-                      'bg-amber-900/80 text-amber-300 border border-amber-600'
-                    }`}>
+                    <span className={`text-xs px-2.5 py-0.5 rounded font-semibold ${estaAprobado ? 'bg-emerald-900/80 text-emerald-300 border border-emerald-600' : tarea.estado === 'Corregir' ? 'bg-red-900/80 text-red-300 border border-red-600' : 'bg-amber-900/80 text-amber-300 border border-amber-600'}`}>
                       {tarea.estado || 'Pendiente'}
                     </span>
-                    
                     {tarea.calificacion !== null && tarea.calificacion !== undefined && (
                       <span className="text-xs bg-blue-900 text-blue-200 border border-blue-700 px-2 py-0.5 rounded font-bold">
                         Calificación: {tarea.calificacion}/100
                       </span>
                     )}
                   </div>
-
                   {tarea.estudiante && (
-                    <p className="text-xs text-slate-300 mt-1 font-medium">
-                      Entregado por: <span className="font-semibold text-blue-300 uppercase">{tarea.estudiante.nombre_completo}</span>
-                    </p>
+                    <p className="text-xs text-slate-300 mt-1 font-medium">Entregado por: <span className="font-semibold text-blue-300 uppercase">{tarea.estudiante.nombre_completo}</span></p>
                   )}
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Enviado: {tarea.creado_en ? new Date(tarea.creado_en).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Reciente'}
-                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">Enviado: {tarea.creado_en ? new Date(tarea.creado_en).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Reciente'}</p>
                 </div>
-
                 <div className="flex items-center gap-3 self-start md:self-auto mt-2 md:mt-0">
-                  <a 
-                    href={tarea.archivo_adjunto_url} 
-                    target="_blank" 
-                    rel="noreferrer" 
-                    className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3.5 py-1.5 rounded text-xs font-semibold transition-colors flex items-center gap-1.5 border border-slate-600 shadow-sm"
-                  >
-                    <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-                    Ver Documento
-                  </a>
-
+                  <a href={tarea.archivo_adjunto_url} target="_blank" rel="noreferrer" className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3.5 py-1.5 rounded text-xs font-semibold transition-colors flex items-center gap-1.5 border border-slate-600 shadow-sm"><svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>Ver Documento</a>
                   {(esDueno || esDocente) && (
-                    <button 
-                      onClick={() => onEliminar(tarea)} 
-                      className="text-slate-400 hover:text-red-400 p-1.5 rounded transition-colors"
-                      title="Eliminar archivo"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                    </button>
+                    <button onClick={() => onEliminar(tarea)} className="text-slate-400 hover:text-red-400 p-1.5 rounded transition-colors" title="Eliminar archivo"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
                   )}
                 </div>
               </div>
-
               {tarea.observaciones_retroalimentacion && (
-                <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-700/60 text-xs mt-1">
-                  <span className="font-semibold text-slate-400 block mb-1">Retroalimentación del docente:</span>
-                  <p className="text-slate-300 italic">{tarea.observaciones_retroalimentacion}</p>
-                </div>
+                <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-700/60 text-xs mt-1"><span className="font-semibold text-slate-400 block mb-1">Retroalimentación del docente:</span><p className="text-slate-300 italic">{tarea.observaciones_retroalimentacion}</p></div>
               )}
-
               {esDocente && (
                 <div className="flex gap-2 pt-2 border-t border-slate-700/50 justify-end mt-1">
                   {!estaAprobado ? (
-                    <>
-                      <button onClick={() => onCalificar(tarea, 'Corregir')} className="text-xs bg-red-950/80 text-red-300 hover:bg-red-900 border border-red-800 px-3 py-1.5 rounded transition-colors font-medium">
-                        Pedir Corrección
-                      </button>
-                      <button onClick={() => onCalificar(tarea, 'Aprobado')} className="text-xs bg-emerald-950/80 text-emerald-300 hover:bg-emerald-900 border border-emerald-800 px-3 py-1.5 rounded transition-colors font-medium">
-                        Aprobar y Calificar
-                      </button>
-                    </>
+                    <><button onClick={() => onCalificar(tarea, 'Corregir')} className="text-xs bg-red-950/80 text-red-300 hover:bg-red-900 border border-red-800 px-3 py-1.5 rounded transition-colors font-medium">Pedir Corrección</button><button onClick={() => onCalificar(tarea, 'Aprobado')} className="text-xs bg-emerald-950/80 text-emerald-300 hover:bg-emerald-900 border border-emerald-800 px-3 py-1.5 rounded transition-colors font-medium">Aprobar y Calificar</button></>
                   ) : (
-                    <button onClick={() => onCalificar(tarea, 'Aprobado')} className="text-xs bg-slate-700/80 text-slate-300 hover:bg-slate-700 border border-slate-600 px-3 py-1.5 rounded transition-colors flex items-center gap-1.5">
-                      ✏️ Reevaluar
-                    </button>
+                    <button onClick={() => onCalificar(tarea, 'Aprobado')} className="text-xs bg-slate-700/80 text-slate-300 hover:bg-slate-700 border border-slate-600 px-3 py-1.5 rounded transition-colors flex items-center gap-1.5">✏️ Reevaluar</button>
                   )}
                 </div>
               )}
@@ -130,7 +82,6 @@ const RenderizarEntregables = ({ lista, tituloLista, user, investigadorId, onCal
   </div>
 );
 
-// 3. COMPONENTE PRINCIPAL
 export default function ProyectoDetalle() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -140,6 +91,7 @@ export default function ProyectoDetalle() {
   const [loading, setLoading] = useState(true);
   
   const [yaPostulado, setYaPostulado] = useState(null); 
+  const [idPostulacionExistente, setIdPostulacionExistente] = useState(null); 
   const [postulando, setPostulando] = useState(false);
   const [alumnosAceptados, setAlumnosAceptados] = useState(0);
 
@@ -157,44 +109,25 @@ export default function ProyectoDetalle() {
 
   useEffect(() => {
     const fetchDatos = async () => {
-      // 1. Cargar Proyecto
-      const { data: dataProyecto, error: errorProyecto } = await supabase
-        .from('proyectos')
-        .select('*, investigador:usuarios!investigador_id(nombre_completo)')
-        .eq('id', id)
-        .single();
-
+      const { data: dataProyecto, error: errorProyecto } = await supabase.from('proyectos').select('*, investigador:usuarios!investigador_id(nombre_completo)').eq('id', id).single();
       if (errorProyecto) console.error("Error al cargar proyecto:", errorProyecto);
       else setProyecto(dataProyecto);
 
-      // 2. Contar alumnos aceptados (cupos)
-      const { count: countAceptados } = await supabase
-        .from('postulaciones')
-        .select('*', { count: 'exact', head: true })
-        .eq('id_proyecto', id)
-        .eq('estado', 'Aceptado');
-      
+      const { count: countAceptados } = await supabase.from('postulaciones').select('*', { count: 'exact', head: true }).eq('id_proyecto', id).eq('estado', 'Aceptado');
       setAlumnosAceptados(countAceptados || 0);
 
-      // 3. Cargar estado de postulación del estudiante logueado
       if (user?.rol === 'Estudiante') {
-        const { data: dataPostulacion } = await supabase
-          .from('postulaciones')
-          .select('id, estado')
-          .eq('id_proyecto', id)
-          .eq('id_estudiante', user.id)
-          .single();
-        if (dataPostulacion) setYaPostulado(dataPostulacion.estado); 
+        const { data: dataPostulacion } = await supabase.from('postulaciones').select('id, estado, mensaje_estudiante, documento_kardex_url').eq('id_proyecto', id).eq('id_estudiante', user.id).single();
+        if (dataPostulacion) {
+          setYaPostulado(dataPostulacion.estado); 
+          setIdPostulacionExistente(dataPostulacion.id);
+          setMensaje(dataPostulacion.mensaje_estudiante || '');
+          setKardexUrl(dataPostulacion.documento_kardex_url || '');
+        }
       }
 
-      // 4. Cargar TODOS los entregables del proyecto (área compartida para el equipo)
       if (user) {
-        const { data: dataEntregables } = await supabase
-          .from('tareas_entregables')
-          .select('*, estudiante:usuarios!id_estudiante(nombre_completo)')
-          .eq('id_proyecto', id)
-          .order('creado_en', { ascending: false });
-
+        const { data: dataEntregables } = await supabase.from('tareas_entregables').select('*, estudiante:usuarios!id_estudiante(nombre_completo)').eq('id_proyecto', id).order('creado_en', { ascending: false });
         if (dataEntregables) setEntregables(dataEntregables);
       }
       setLoading(false);
@@ -237,19 +170,23 @@ export default function ProyectoDetalle() {
   const confirmarPostulacion = async (e) => {
     e.preventDefault();
     setPostulando(true);
-    const { error } = await supabase.from('postulaciones').insert([{ 
-        id_proyecto: id, id_estudiante: user.id, mensaje_estudiante: mensaje,
-        documento_kardex_url: kardexUrl, estado: 'Pendiente'
-      }]);
-    if (error) { alert("Error al procesar tu postulación."); console.error(error); } 
+    let errorOperacion;
+
+    if (idPostulacionExistente && yaPostulado === 'Rechazado') {
+      const { error } = await supabase.from('postulaciones').update({
+        mensaje_estudiante: mensaje, documento_kardex_url: kardexUrl, estado: 'Pendiente', fecha_postulacion: new Date().toISOString()
+      }).eq('id', idPostulacionExistente);
+      errorOperacion = error;
+    } else {
+      const { data, error } = await supabase.from('postulaciones').insert([{ id_proyecto: id, id_estudiante: user.id, mensaje_estudiante: mensaje, documento_kardex_url: kardexUrl, estado: 'Pendiente' }]).select().single();
+      if (data) setIdPostulacionExistente(data.id);
+      errorOperacion = error;
+    }
+
+    if (errorOperacion) { alert("Error al procesar tu postulación."); console.error(errorOperacion); } 
     else {
-      if (proyecto?.investigador_id) {
-        await supabase.from('notificaciones').insert([{
-            usuario_id: proyecto.investigador_id, tipo: 'postulacion',
-            mensaje: `El alumno ${user?.nombre_completo || 'un estudiante'} se ha postulado a tu proyecto: "${proyecto.titulo}".`
-          }]);
-      }
-      alert("Postulación enviada con éxito.");
+      if (proyecto?.investigador_id) { await supabase.from('notificaciones').insert([{ usuario_id: proyecto.investigador_id, tipo: 'postulacion', mensaje: `El alumno ${user?.nombre_completo || 'un estudiante'} ha enviado o actualizado su postulación a tu proyecto: "${proyecto.titulo}".` }]); }
+      alert(yaPostulado === 'Rechazado' ? "Postulación reenviada con éxito." : "Postulación enviada con éxito.");
       setYaPostulado('Pendiente'); setIsModalOpen(false); 
     }
     setPostulando(false);
@@ -259,94 +196,51 @@ export default function ProyectoDetalle() {
     e.preventDefault();
     setSubiendoTarea(true);
     let urlFinal;
-
     if (metodoSubida === 'archivo') {
       if (!archivoFisico) { alert("Selecciona un archivo PDF."); setSubiendoTarea(false); return; }
       const extension = archivoFisico.name.split('.').pop();
       const nombreLimpio = `${Date.now()}_${user.id}.${extension}`;
-      
       const { error: errorStorage } = await supabase.storage.from('documentos').upload(`entregables/${nombreLimpio}`, archivoFisico);
       if (errorStorage) { alert(`Error al subir archivo a Supabase: ${errorStorage.message}`); setSubiendoTarea(false); return; }
-      
       const { data: dataUrl } = supabase.storage.from('documentos').getPublicUrl(`entregables/${nombreLimpio}`);
       urlFinal = dataUrl.publicUrl;
     } else {
       if (!archivoAdjuntoUrl.trim()) { alert('Introduce el enlace externo.'); setSubiendoTarea(false); return; }
       urlFinal = archivoAdjuntoUrl.trim();
     }
-
-    const { data, error } = await supabase.from('tareas_entregables').insert([{
-        id_proyecto: id, id_estudiante: user.id, titulo_tarea: tituloTarea,
-        archivo_adjunto_url: urlFinal, estado: 'Pendiente', tipo_entregable: tipoEntregable
-      }]).select('*, estudiante:usuarios!id_estudiante(nombre_completo)').single();
-
+    const { data, error } = await supabase.from('tareas_entregables').insert([{ id_proyecto: id, id_estudiante: user.id, titulo_tarea: tituloTarea, archivo_adjunto_url: urlFinal, estado: 'Pendiente', tipo_entregable: tipoEntregable }]).select('*, estudiante:usuarios!id_estudiante(nombre_completo)').single();
     if (error) { alert("Error al registrar entregable en base de datos."); console.error(error); } 
-    else {
-      alert("Entregable enviado con éxito.");
-      setEntregables([data, ...entregables]);
-      setTituloTarea(''); setArchivoAdjuntoUrl(''); setArchivoFisico(null);
-    }
+    else { alert("Entregable enviado con éxito."); setEntregables([data, ...entregables]); setTituloTarea(''); setArchivoAdjuntoUrl(''); setArchivoFisico(null); }
     setSubiendoTarea(false);
   };
   
   const handleCalificarTarea = async (tarea, nuevoEstado) => {
     const obs = prompt(`Retroalimentación para marcar como ${nuevoEstado}:`, tarea.observaciones_retroalimentacion || "");
     if (obs === null) return;
-    
     let califNum = null;
     if (nuevoEstado === 'Aprobado') {
       const califStr = prompt("Asigna una calificación (0 - 100):", tarea.calificacion || "");
       if (califStr !== null && califStr.trim() !== '') califNum = parseInt(califStr);
     }
-
-    const { error } = await supabase.from('tareas_entregables').update({
-        estado: nuevoEstado, observaciones_retroalimentacion: obs, calificacion: califNum
-      }).eq('id', tarea.id);
-
+    const { error } = await supabase.from('tareas_entregables').update({ estado: nuevoEstado, observaciones_retroalimentacion: obs, calificacion: califNum }).eq('id', tarea.id);
     if (error) { alert("Error al actualizar la revisión."); console.error(error); } 
     else {
       setEntregables(entregables.map(t => t.id === tarea.id ? { ...t, estado: nuevoEstado, observaciones_retroalimentacion: obs, calificacion: califNum } : t));
-      if (tarea.id_estudiante) {
-        await supabase.from('notificaciones').insert([{
-            usuario_id: tarea.id_estudiante, tipo: 'revision',
-            mensaje: `Tu entrega "${tarea.titulo_tarea}" fue marcada como: ${nuevoEstado}. Retroalimentación: "${obs}"`
-          }]);
-      }
+      if (tarea.id_estudiante) { await supabase.from('notificaciones').insert([{ usuario_id: tarea.id_estudiante, tipo: 'revision', mensaje: `Tu entrega "${tarea.titulo_tarea}" fue marcada como: ${nuevoEstado}. Retroalimentación: "${obs}"` }]); }
     }
   };
 
   const handleEliminarTarea = async (tarea) => {
     if (!window.confirm(`¿Estás seguro de eliminar el entregable "${tarea.titulo_tarea}"? Esta acción no se puede deshacer.`)) return;
-
-    // 1. Si el archivo está alojado en Supabase Storage, lo borramos primero
     if (tarea.archivo_adjunto_url && tarea.archivo_adjunto_url.includes('supabase.co/storage')) {
       const urlParts = tarea.archivo_adjunto_url.split('/');
       const fileName = urlParts[urlParts.length - 1];
-      
       const { error: errStorage } = await supabase.storage.from('documentos').remove([`entregables/${fileName}`]);
       if (errStorage) console.error("Error al borrar archivo de Storage:", errStorage);
     }
-
-    // 2. Borramos el registro de la base de datos (Usamos .select() para confirmar borrado)
-    const { data, error } = await supabase
-      .from('tareas_entregables')
-      .delete()
-      .eq('id', tarea.id)
-      .select(); 
-    
-    if (error) {
-      alert(`Error al eliminar el entregable: ${error.message}`);
-      console.error(error);
-      return;
-    }
-
-    // 3. Verificamos si realmente se eliminó en la BD
-    if (!data || data.length === 0) {
-      alert("La base de datos bloqueó la eliminación (0 filas afectadas). Verifica tus permisos.");
-      return;
-    }
-
-    // 4. Si llegó hasta aquí, se borró de verdad en Supabase. Actualizamos la pantalla.
+    const { data, error } = await supabase.from('tareas_entregables').delete().eq('id', tarea.id).select(); 
+    if (error) { alert(`Error al eliminar el entregable: ${error.message}`); console.error(error); return; }
+    if (!data || data.length === 0) { alert("La base de datos bloqueó la eliminación (0 filas afectadas). Verifica tus permisos."); return; }
     setEntregables(entregables.filter(t => t.id !== tarea.id));
   };
 
@@ -359,12 +253,10 @@ export default function ProyectoDetalle() {
     <div className="min-h-screen bg-slate-50 p-6 md:p-12 relative">
       <div className="max-w-6xl mx-auto space-y-8">
         
-        {/* CAJA PRINCIPAL */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="p-6 border-b border-slate-200 flex justify-between items-start gap-4 flex-wrap md:flex-nowrap">
             <h1 className="text-xl md:text-2xl font-bold text-slate-900 leading-snug">{proyecto.titulo}</h1>
             <div className="flex items-center gap-3 flex-shrink-0">
-              {/* Ocultamos la campana si NO hay usuario logueado */}
               {user && <NotificacionesBell />}
               <button onClick={() => navigate(-1)} className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded flex items-center gap-2 text-sm font-medium transition-colors">← Regresar</button>
             </div>
@@ -375,13 +267,11 @@ export default function ProyectoDetalle() {
               <h2 className="text-lg font-bold text-slate-900">Detalle de la Propuesta</h2>
             </div>
             <div className="border border-t-0 border-slate-200 rounded-b-lg p-6 space-y-4">
-              {/* LOS 4 PUNTOS ACTUALIZADOS */}
               <InfoBox titulo="Planteamiento del problema" texto={proyecto.planteamiento_problema || proyecto.descripcion} />
               <InfoBox titulo="Objetivo general" texto={proyecto.objetivo_general || proyecto.objetivo} />
               <InfoBox titulo="Objetivos Específicos" texto={proyecto.objetivos_especificos || proyecto.pre_requisitos} />
               <InfoBox titulo="Delimitación" texto={proyecto.delimitacion || proyecto.requisitos} />
               
-              {/* === SECCIÓN PROTOCOLO OFICIAL DESCARGABLE (SOLO LOGUEADOS) === */}
               {user && proyecto.documento_protocolo_url && (
                 <div className="mt-6 p-5 bg-blue-50 rounded-lg border border-blue-100 flex items-center justify-between flex-wrap gap-4">
                   <div>
@@ -397,33 +287,32 @@ export default function ProyectoDetalle() {
                   </a>
                 </div>
               )}
-              {/* ============================================== */}
-              
-              {/* VISUALIZACIÓN DE CUPOS */}
+
               <div className="mt-8 pt-4 border-t border-slate-100 text-sm flex flex-col md:flex-row justify-between items-center gap-4">
                 <div className="flex flex-col gap-1 text-center md:text-left w-full md:w-auto">
                   <div className="text-slate-500">Investigador: <span className="font-semibold text-slate-700 uppercase">{proyecto.investigador?.nombre_completo}</span></div>
-                  <div className="text-slate-500">
-                    Cupos Ocupados: <span className={`font-bold ${alumnosAceptados >= (proyecto.cupos_requeridos || 1) ? 'text-red-600' : 'text-blue-600'}`}>
-                      {alumnosAceptados} / {proyecto.cupos_requeridos || 1}
-                    </span>
-                  </div>
+                  <div className="text-slate-500">Cupos Ocupados: <span className={`font-bold ${alumnosAceptados >= (proyecto.cupos_requeridos || 1) ? 'text-red-600' : 'text-blue-600'}`}>{alumnosAceptados} / {proyecto.cupos_requeridos || 1}</span></div>
                 </div>
                 
                 {user?.rol === 'Estudiante' && proyecto.estado?.toLowerCase() !== 'finalizado' && (
                   <div>
                     {yaPostulado === 'Aceptado' ? (
                       <div className="flex items-center gap-3 flex-wrap justify-end">
-                        <span className="bg-emerald-100 text-emerald-800 px-4 py-2 rounded-md font-semibold flex items-center gap-2 shadow-sm text-sm">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                          Aceptado
-                        </span>
-                        <button onClick={imprimirCartaAceptacion} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-semibold text-sm transition-colors shadow-sm flex items-center gap-2">
-                          📄 Descargar Carta de Aceptación
-                        </button>
+                        <span className="bg-emerald-100 text-emerald-800 px-4 py-2 rounded-md font-semibold flex items-center gap-2 shadow-sm text-sm"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg> Aceptado</span>
+                        <button onClick={imprimirCartaAceptacion} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-semibold text-sm transition-colors shadow-sm flex items-center gap-2">📄 Descargar Carta de Aceptación</button>
                       </div>
                     ) : yaPostulado === 'Rechazado' ? (
-                      <span className="bg-red-100 text-red-800 px-4 py-2 rounded-md font-semibold flex items-center gap-2 shadow-sm"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg> Rechazado</span>
+                      <div className="flex items-center gap-3">
+                        <span className="bg-red-100 text-red-800 px-4 py-2 rounded-md font-semibold text-sm flex items-center gap-2 shadow-sm">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg> 
+                          Rechazado
+                        </span>
+                        {alumnosAceptados < (proyecto.cupos_requeridos || 1) && (
+                          <button onClick={() => setIsModalOpen(true)} className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-md font-semibold text-sm transition-colors shadow-sm flex items-center gap-1.5">
+                            🔄 Reintentar solicitud
+                          </button>
+                        )}
+                      </div>
                     ) : yaPostulado === 'Pendiente' ? (
                       <span className="bg-amber-100 text-amber-800 px-4 py-2 rounded-md font-semibold flex items-center gap-2 shadow-sm"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> En Revisión</span>
                     ) : alumnosAceptados < (proyecto.cupos_requeridos || 1) ? (
@@ -438,101 +327,43 @@ export default function ProyectoDetalle() {
           </div>
         </div>
 
-        {/* ESPACIO DE TRABAJO COMPARTIDO */}
         {(yaPostulado === 'Aceptado' || user?.id === proyecto.investigador_id || user?.rol === 'Administrador') && (
           <div className="bg-slate-900 rounded-xl shadow-lg border border-slate-700 overflow-hidden">
             <div className="p-6 border-b border-slate-700 bg-slate-800">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-                Espacio de Trabajo y Seguimiento
-              </h2>
-              <p className="text-slate-400 text-sm mt-1">
-                {user?.rol === 'Estudiante' 
-                  ? "Consulta los avances del equipo y sube tus reportes oficiales o bitácoras." 
-                  : "Revisa, retroalimenta y califica los avances y reportes de tus residentes."}
-              </p>
+              <h2 className="text-xl font-bold text-white flex items-center gap-2"><svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg> Espacio de Trabajo y Seguimiento</h2>
+              <p className="text-slate-400 text-sm mt-1">{user?.rol === 'Estudiante' ? "Consulta los avances del equipo y sube tus reportes oficiales o bitácoras." : "Revisa, retroalimenta y califica los avances y reportes de tus residentes."}</p>
             </div>
-
             <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Formulario Estudiante */}
               {user?.rol === 'Estudiante' && (
                 <div className="lg:col-span-1 bg-slate-800 p-5 rounded-lg border border-slate-700 h-fit">
                   <h3 className="text-white font-semibold mb-4 border-b border-slate-700 pb-2">Subir Documento</h3>
-                  
-                  <div className="flex bg-slate-900 p-1 rounded-lg mb-4 border border-slate-700">
-                    <button type="button" onClick={() => setMetodoSubida('archivo')} className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${metodoSubida === 'archivo' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>📄 Archivo PDF</button>
-                    <button type="button" onClick={() => setMetodoSubida('enlace')} className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${metodoSubida === 'enlace' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>🔗 Enlace Externo</button>
-                  </div>
-
+                  <div className="flex bg-slate-900 p-1 rounded-lg mb-4 border border-slate-700"><button type="button" onClick={() => setMetodoSubida('archivo')} className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${metodoSubida === 'archivo' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>📄 Archivo PDF</button><button type="button" onClick={() => setMetodoSubida('enlace')} className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${metodoSubida === 'enlace' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>🔗 Enlace Externo</button></div>
                   <form onSubmit={handleSubirTarea} className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1">Clasificación</label>
-                      <select value={tipoEntregable} onChange={(e) => setTipoEntregable(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded text-white text-sm focus:border-blue-500 outline-none">
-                        <option value="Avance Libre">Avance / Tarea Semanal</option>
-                        <option value="Reporte Preliminar">Reporte Preliminar Oficial</option>
-                        <option value="Reporte Final">Reporte Final Oficial</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1">Título de la entrega</label>
-                      <input type="text" required value={tituloTarea} onChange={(e) => setTituloTarea(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded text-white text-sm focus:border-blue-500 outline-none" placeholder="Ej. Reporte Semanal 1" />
-                    </div>
-                    
-                    {metodoSubida === 'archivo' ? (
-                      <div>
-                        <label className="block text-xs font-medium text-slate-300 mb-1">Archivo PDF (Max 10MB)</label>
-                        <input type="file" accept=".pdf" onChange={(e) => setArchivoFisico(e.target.files[0])} className="w-full text-xs text-slate-400 file:mr-3 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-slate-700 file:text-slate-200 hover:file:bg-slate-600 cursor-pointer" />
-                      </div>
-                    ) : (
-                      <div>
-                        <label className="block text-xs font-medium text-slate-300 mb-1">Enlace (Drive, OneDrive)</label>
-                        <input type="url" required value={archivoAdjuntoUrl} onChange={(e) => setArchivoAdjuntoUrl(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded text-white text-sm focus:border-blue-500 outline-none" placeholder="https://" />
-                      </div>
-                    )}
-                    
-                    <button type="submit" disabled={subiendoTarea} className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 rounded transition-colors disabled:opacity-50 mt-2">
-                      {subiendoTarea ? 'Enviando...' : 'Subir Entregable'}
-                    </button>
+                    <div><label className="block text-xs font-medium text-slate-300 mb-1">Clasificación</label><select value={tipoEntregable} onChange={(e) => setTipoEntregable(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded text-white text-sm focus:border-blue-500 outline-none"><option value="Avance Libre">Avance / Tarea Semanal</option><option value="Reporte Preliminar">Reporte Preliminar Oficial</option><option value="Reporte Final">Reporte Final Oficial</option></select></div>
+                    <div><label className="block text-xs font-medium text-slate-300 mb-1">Título de la entrega</label><input type="text" required value={tituloTarea} onChange={(e) => setTituloTarea(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded text-white text-sm focus:border-blue-500 outline-none" placeholder="Ej. Reporte Semanal 1" /></div>
+                    {metodoSubida === 'archivo' ? (<div><label className="block text-xs font-medium text-slate-300 mb-1">Archivo PDF (Max 10MB)</label><input type="file" accept=".pdf" onChange={(e) => setArchivoFisico(e.target.files[0])} className="w-full text-xs text-slate-400 file:mr-3 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-slate-700 file:text-slate-200 hover:file:bg-slate-600 cursor-pointer" /></div>) : (<div><label className="block text-xs font-medium text-slate-300 mb-1">Enlace (Drive, OneDrive)</label><input type="url" required value={archivoAdjuntoUrl} onChange={(e) => setArchivoAdjuntoUrl(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded text-white text-sm focus:border-blue-500 outline-none" placeholder="https://" /></div>)}
+                    <button type="submit" disabled={subiendoTarea} className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 rounded transition-colors disabled:opacity-50 mt-2">{subiendoTarea ? 'Enviando...' : 'Subir Entregable'}</button>
                   </form>
                 </div>
               )}
-
-              {/* Listado de Entregas */}
               <div className={gridClassNames}>
-                <RenderizarEntregables 
-                  lista={entregables.filter(t => t.tipo_entregable === 'Reporte Preliminar' || t.tipo_entregable === 'Reporte Final')} 
-                  tituloLista="📑 Reportes Oficiales Institucionales" 
-                  user={user}
-                  investigadorId={proyecto.investigador_id}
-                  onCalificar={handleCalificarTarea}
-                  onEliminar={handleEliminarTarea}
-                />
-                <RenderizarEntregables 
-                  lista={entregables.filter(t => t.tipo_entregable === 'Avance Libre' || !t.tipo_entregable)} 
-                  tituloLista="📝 Bitácora de Avances y Tareas" 
-                  user={user}
-                  investigadorId={proyecto.investigador_id}
-                  onCalificar={handleCalificarTarea}
-                  onEliminar={handleEliminarTarea}
-                />
+                <RenderizarEntregables lista={entregables.filter(t => t.tipo_entregable === 'Reporte Preliminar' || t.tipo_entregable === 'Reporte Final')} tituloLista="📑 Reportes Oficiales Institucionales" user={user} investigadorId={proyecto.investigador_id} onCalificar={handleCalificarTarea} onEliminar={handleEliminarTarea} />
+                <RenderizarEntregables lista={entregables.filter(t => t.tipo_entregable === 'Avance Libre' || !t.tipo_entregable)} tituloLista="📝 Bitácora de Avances y Tareas" user={user} investigadorId={proyecto.investigador_id} onCalificar={handleCalificarTarea} onEliminar={handleEliminarTarea} />
               </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* MODAL DE POSTULACION */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-lg w-full overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h3 className="text-lg font-bold text-slate-800">Formulario de Postulación</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold text-xl">x</button>
-            </div>
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="text-lg font-bold text-slate-800">Formulario de Postulación</h3><button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold text-xl">x</button></div>
             <form onSubmit={confirmarPostulacion} className="p-6 space-y-5">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Carta de Motivos</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Carta de Motivos / Justificación</label>
                 <textarea required rows="4" value={mensaje} onChange={(e) => setMensaje(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" placeholder="Estimado investigador..." />
+                {yaPostulado === 'Rechazado' && <p className="text-xs text-blue-600 mt-1">Has recuperado tu último mensaje. Puedes modificarlo antes de reintentar.</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Enlace al Kardex / Historial Académico</label>
@@ -541,7 +372,7 @@ export default function ProyectoDetalle() {
               <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
                 <button type="submit" disabled={postulando} className="px-4 py-2 bg-emerald-600 text-white font-medium hover:bg-emerald-700 rounded-lg disabled:opacity-50 transition-colors shadow-sm">
-                  {postulando ? 'Enviando...' : 'Enviar Solicitud'}
+                  {postulando ? 'Enviando...' : (yaPostulado === 'Rechazado' ? 'Reenviar Solicitud' : 'Enviar Solicitud')}
                 </button>
               </div>
             </form>

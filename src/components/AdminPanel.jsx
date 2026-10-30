@@ -98,27 +98,61 @@ export default function AdminPanel({ onRefreshProyectos, user }) {
 
     // Intervenir postulación (ADMIN O INVESTIGADOR DUEÑO DEL PROYECTO)
     const handleDictamenAdmin = async (post, nuevoEstado) => {
-        const { error } = await supabase
+        const { data, error } = await supabase
             .from('postulaciones')
             .update({ estado: nuevoEstado })
-            .eq('id', post.id);
+            .eq('id', post.id)
+            .select(); // Obligamos a verificar la actualización
 
         if (error) {
             alert('Error al actualizar la postulación.');
-        } else {
-            setTodasPostulaciones(todasPostulaciones.map(p => p.id === post.id ? { ...p, estado: nuevoEstado } : p));
-
-            if (post.id_estudiante) {
-                const autorDictamen = esAdmin ? "[Administración]" : "[Investigador Titular]";
-                await supabase.from('notificaciones').insert([
-                    {
-                        usuario_id: post.id_estudiante,
-                        tipo: nuevoEstado.toLowerCase(),
-                        mensaje: `${autorDictamen} Tu postulación al proyecto "${post.proyecto?.titulo}" fue marcada como ${nuevoEstado}.`
-                    }
-                ]);
-            }
+            return;
         }
+        
+        if (!data || data.length === 0) {
+            alert('⚠️ La base de datos bloqueó la acción. No tienes permisos para dictaminar (RLS).');
+            return;
+        }
+
+        setTodasPostulaciones(todasPostulaciones.map(p => p.id === post.id ? { ...p, estado: nuevoEstado } : p));
+
+        if (post.id_estudiante) {
+            const autorDictamen = esAdmin ? "[Administración]" : "[Investigador Titular]";
+            await supabase.from('notificaciones').insert([
+                {
+                    usuario_id: post.id_estudiante,
+                    tipo: nuevoEstado.toLowerCase(),
+                    mensaje: `${autorDictamen} Tu postulación al proyecto "${post.proyecto?.titulo}" fue marcada como ${nuevoEstado}.`
+                }
+            ]);
+        }
+    };
+
+    // === ELIMINAR POSTULACIÓN CORREGIDA ===
+    const handleEliminarPostulacion = async (postulacionId) => {
+        if (!window.confirm("¿Estás seguro de borrar permanentemente esta solicitud? Si lo haces, el estudiante quedará desbloqueado y podrá volver a postularse a este proyecto.")) return;
+
+        // Añadimos .select() para que Supabase confiese si realmente borró algo
+        const { data, error } = await supabase
+            .from('postulaciones')
+            .delete()
+            .eq('id', postulacionId)
+            .select(); 
+
+        if (error) {
+            alert(`Error al eliminar la solicitud: ${error.message}`);
+            return;
+        }
+
+        // Esta es la validación que te protegerá de fallos silenciosos
+        if (!data || data.length === 0) {
+            alert("⚠️ La base de datos bloqueó la eliminación (0 filas afectadas). Necesitas configurar los permisos SQL en Supabase para permitir borrar postulaciones.");
+            return;
+        }
+
+        setTodasPostulaciones(todasPostulaciones.filter(p => p.id !== postulacionId));
+        if (onRefreshProyectos) onRefreshProyectos();
+        alert("Solicitud eliminada. El estudiante ya puede volver a postularse.");
     };
 
     // Enviar notificación masiva (SOLO ADMIN)
@@ -166,7 +200,6 @@ export default function AdminPanel({ onRefreshProyectos, user }) {
             ]);
             nombreArchivo = 'Directorio_TecNM.csv';
         } else {
-            // Si es investigador, exporta solo sus postulaciones
             encabezados = ['Proyecto', 'Alumno', 'Correo Alumno', 'No. Control', 'Estado Postulación', 'Fecha'];
             filas = todasPostulaciones.map(p => [
                 `"${(p.proyecto?.titulo || '').replace(/"/g, '""')}"`,
@@ -429,11 +462,18 @@ export default function AdminPanel({ onRefreshProyectos, user }) {
                                                     {post.estado !== 'Rechazado' && (
                                                         <button
                                                             onClick={() => handleDictamenAdmin(post, 'Rechazado')}
-                                                            className="text-xs bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 px-2.5 py-1 rounded font-semibold"
+                                                            className="text-xs bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 px-2.5 py-1 rounded font-semibold"
                                                         >
                                                             Rechazar
                                                         </button>
                                                     )}
+                                                    <button
+                                                        onClick={() => handleEliminarPostulacion(post.id)}
+                                                        className="text-xs bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 px-2.5 py-1 rounded font-semibold ml-1"
+                                                        title="Eliminar esta solicitud"
+                                                    >
+                                                        🗑️
+                                                    </button>
                                                 </td>
                                             </tr>
                                         ))}
