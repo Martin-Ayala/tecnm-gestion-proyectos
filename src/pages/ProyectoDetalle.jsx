@@ -318,6 +318,7 @@ export default function ProyectoDetalle() {
   const handleEliminarTarea = async (tarea) => {
     if (!window.confirm(`¿Estás seguro de eliminar el entregable "${tarea.titulo_tarea}"? Esta acción no se puede deshacer.`)) return;
 
+    // 1. Si el archivo está alojado en Supabase Storage, lo borramos primero
     if (tarea.archivo_adjunto_url && tarea.archivo_adjunto_url.includes('supabase.co/storage')) {
       const urlParts = tarea.archivo_adjunto_url.split('/');
       const fileName = urlParts[urlParts.length - 1];
@@ -326,6 +327,7 @@ export default function ProyectoDetalle() {
       if (errStorage) console.error("Error al borrar archivo de Storage:", errStorage);
     }
 
+    // 2. Borramos el registro de la base de datos (Usamos .select() para confirmar borrado)
     const { data, error } = await supabase
       .from('tareas_entregables')
       .delete()
@@ -338,11 +340,13 @@ export default function ProyectoDetalle() {
       return;
     }
 
+    // 3. Verificamos si realmente se eliminó en la BD
     if (!data || data.length === 0) {
       alert("La base de datos bloqueó la eliminación (0 filas afectadas). Verifica tus permisos.");
       return;
     }
 
+    // 4. Si llegó hasta aquí, se borró de verdad en Supabase. Actualizamos la pantalla.
     setEntregables(entregables.filter(t => t.id !== tarea.id));
   };
 
@@ -360,7 +364,8 @@ export default function ProyectoDetalle() {
           <div className="p-6 border-b border-slate-200 flex justify-between items-start gap-4 flex-wrap md:flex-nowrap">
             <h1 className="text-xl md:text-2xl font-bold text-slate-900 leading-snug">{proyecto.titulo}</h1>
             <div className="flex items-center gap-3 flex-shrink-0">
-              <NotificacionesBell />
+              {/* Ocultamos la campana si NO hay usuario logueado */}
+              {user && <NotificacionesBell />}
               <button onClick={() => navigate(-1)} className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded flex items-center gap-2 text-sm font-medium transition-colors">← Regresar</button>
             </div>
           </div>
@@ -376,8 +381,8 @@ export default function ProyectoDetalle() {
               <InfoBox titulo="Objetivos Específicos" texto={proyecto.objetivos_especificos || proyecto.pre_requisitos} />
               <InfoBox titulo="Delimitación" texto={proyecto.delimitacion || proyecto.requisitos} />
               
-              {/* === SECCIÓN PROTOCOLO OFICIAL DESCARGABLE === */}
-              {proyecto.documento_protocolo_url && (
+              {/* === SECCIÓN PROTOCOLO OFICIAL DESCARGABLE (SOLO LOGUEADOS) === */}
+              {user && proyecto.documento_protocolo_url && (
                 <div className="mt-6 p-5 bg-blue-50 rounded-lg border border-blue-100 flex items-center justify-between flex-wrap gap-4">
                   <div>
                     <h4 className="text-sm font-bold text-blue-900 flex items-center gap-2">
@@ -438,7 +443,7 @@ export default function ProyectoDetalle() {
           <div className="bg-slate-900 rounded-xl shadow-lg border border-slate-700 overflow-hidden">
             <div className="p-6 border-b border-slate-700 bg-slate-800">
               <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
                 Espacio de Trabajo y Seguimiento
               </h2>
               <p className="text-slate-400 text-sm mt-1">

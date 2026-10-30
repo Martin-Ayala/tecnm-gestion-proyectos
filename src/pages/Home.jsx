@@ -3,13 +3,26 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
+const OPCIONES_CARRERAS = [
+  "Multidisciplinario (Todas las carreras)",
+  "Ingeniería en Sistemas Computacionales",
+  "Ingeniería en Gestión Empresarial",
+  "Ingeniería Industrial",
+  "Ingeniería en Administración",
+  "Ingeniería en Industrias Alimentarias"
+];
+
+const OPCIONES_MODALIDAD = ["Presencial", "Híbrida", "Virtual"];
+
 export default function Home() {
     const [proyectos, setProyectos] = useState([]);
     const [loading, setLoading] = useState(true);
     const { user } = useAuth();
     
-    // Estado para la barra de búsqueda
+    // Estados para la barra de búsqueda y filtros
     const [busqueda, setBusqueda] = useState('');
+    const [filtroModalidad, setFiltroModalidad] = useState('Todas');
+    const [filtroCarrera, setFiltroCarrera] = useState('Todas');
 
     useEffect(() => {
         const fetchProyectosPublicos = async () => {
@@ -29,8 +42,17 @@ export default function Home() {
 
     // Lógica de filtrado en tiempo real
     const proyectosFiltrados = proyectos.filter((proy) => {
-        return proy.titulo?.toLowerCase().includes(busqueda.toLowerCase()) ||
-               proy.investigador?.nombre_completo?.toLowerCase().includes(busqueda.toLowerCase());
+        const textoBuscar = busqueda.toLowerCase();
+        
+        const coincideTexto = 
+            proy.titulo?.toLowerCase().includes(textoBuscar) ||
+            proy.investigador?.nombre_completo?.toLowerCase().includes(textoBuscar) ||
+            (proy.planteamiento_problema || proy.descripcion)?.toLowerCase().includes(textoBuscar);
+
+        const coincideModalidad = filtroModalidad === 'Todas' || proy.modalidad === filtroModalidad;
+        const coincideCarrera = filtroCarrera === 'Todas' || proy.carrera === filtroCarrera;
+
+        return coincideTexto && coincideModalidad && coincideCarrera;
     });
 
     return (
@@ -59,21 +81,52 @@ export default function Home() {
             </nav>
 
             {/* HEADER / BUSCADOR CENTRADO */}
-            <header className="max-w-7xl mx-auto px-6 py-12 md:py-20 flex flex-col items-center text-center">
+            <header className="max-w-7xl mx-auto px-6 py-12 md:py-16 flex flex-col items-center text-center">
                 <h2 className="text-3xl md:text-5xl font-bold text-slate-800 mb-8">
                     Propuestas de Investigación 2026
                 </h2>
-                <div className="flex flex-col md:flex-row gap-4 w-full max-w-2xl">
-                    <input
-                        type="text"
-                        value={busqueda}
-                        onChange={(e) => setBusqueda(e.target.value)}
-                        placeholder="Buscar por propuesta o investigador..."
-                        className="flex-1 bg-white border border-slate-300 rounded-md px-4 py-3 text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder-slate-400 shadow-sm"
-                    />
-                    <button className="bg-blue-600 border border-blue-600 text-white px-8 py-3 rounded-md hover:bg-blue-700 transition-colors font-medium shadow-sm">
-                        Buscar
-                    </button>
+                
+                {/* === NUEVA BARRA DE BÚSQUEDA Y FILTRADO === */}
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-4 w-full max-w-4xl">
+                    <div className="relative w-full">
+                        <input 
+                            type="text" 
+                            value={busqueda} 
+                            onChange={(e) => setBusqueda(e.target.value)} 
+                            placeholder="Buscar por propuesta, investigador o planteamiento..." 
+                            className="w-full pl-11 pr-4 py-3 border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors shadow-sm" 
+                        />
+                        <svg className="w-6 h-6 text-slate-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                    </div>
+                    
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
+                        <select 
+                            value={filtroModalidad} 
+                            onChange={(e) => setFiltroModalidad(e.target.value)} 
+                            className="bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                        >
+                            <option value="Todas">Modalidad: Todas</option>
+                            {OPCIONES_MODALIDAD.map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+
+                        <select 
+                            value={filtroCarrera} 
+                            onChange={(e) => setFiltroCarrera(e.target.value)} 
+                            className="bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer max-w-[280px] truncate"
+                        >
+                            <option value="Todas">Carrera: Todas</option>
+                            {OPCIONES_CARRERAS.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+
+                        {(busqueda || filtroModalidad !== 'Todas' || filtroCarrera !== 'Todas') && (
+                            <button 
+                                onClick={() => { setBusqueda(''); setFiltroModalidad('Todas'); setFiltroCarrera('Todas'); }} 
+                                className="text-xs text-red-600 hover:text-red-700 font-bold whitespace-nowrap px-3 py-2 bg-red-50 hover:bg-red-100 rounded-lg transition-colors md:ml-auto"
+                            >
+                                Limpiar Filtros
+                            </button>
+                        )}
+                    </div>
                 </div>
             </header>
 
@@ -84,20 +137,37 @@ export default function Home() {
                 {loading ? (
                     <div className="text-center py-20 text-slate-500">Cargando catálogo de proyectos...</div>
                 ) : proyectos.length === 0 ? (
-                    <div className="text-center py-20 text-slate-500 bg-white border border-slate-200 rounded-lg">
+                    <div className="text-center py-20 text-slate-500 bg-white border border-slate-200 rounded-lg shadow-sm">
                         Aún no hay propuestas activas publicadas para este periodo.
                     </div>
                 ) : proyectosFiltrados.length === 0 ? (
-                    <div className="text-center py-20 text-slate-500 bg-white border border-slate-200 rounded-lg">
-                        No se encontraron proyectos que coincidan con "{busqueda}".
+                    <div className="text-center py-20 text-slate-500 bg-white border border-slate-200 rounded-lg shadow-sm">
+                        <svg className="w-12 h-12 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        No se encontraron proyectos que coincidan con los filtros seleccionados.
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {proyectosFiltrados.map((proyecto) => (
                             <div key={proyecto.id} className="bg-white border border-slate-200 rounded-xl p-6 hover:shadow-lg transition-all flex flex-col h-full">
-                                <h4 className="text-lg font-bold text-slate-800 text-center mb-6 leading-snug">
+                                <h4 className="text-lg font-bold text-slate-800 text-center mb-4 leading-snug">
                                     {proyecto.titulo}
                                 </h4>
+
+                                {/* === ETIQUETAS DE CARRERA Y MODALIDAD EN LA TARJETA === */}
+                                <div className="flex flex-wrap justify-center gap-2 mb-6">
+                                    <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded flex items-center gap-1 font-bold shadow-sm">
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                                        {proyecto.carrera || 'Multidisciplinario'}
+                                    </span>
+                                    <span className="text-[10px] bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded flex items-center gap-1 font-bold shadow-sm">
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                                        {proyecto.modalidad || 'Presencial'}
+                                    </span>
+                                </div>
+                                {/* ======================================================= */}
+
                                 <div className="space-y-2 text-sm text-center mb-8 flex-grow">
                                     <p><span className="text-slate-500">Institución:</span> TecNM Campus Felipe Carrillo Puerto</p>
                                     <p><span className="text-slate-500">Investigador:</span> <span className="text-slate-700 font-medium uppercase">{proyecto.investigador?.nombre_completo}</span></p>
