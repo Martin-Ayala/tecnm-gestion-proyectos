@@ -64,7 +64,6 @@ const RenderizarEntregables = ({ lista, tituloLista, user, investigadorId, onCal
                     )}
                   </div>
 
-                  {/* Nombre visible tanto para docentes como para compañeros de equipo */}
                   {tarea.estudiante && (
                     <p className="text-xs text-slate-300 mt-1 font-medium">
                       Entregado por: <span className="font-semibold text-blue-300 uppercase">{tarea.estudiante.nombre_completo}</span>
@@ -86,7 +85,6 @@ const RenderizarEntregables = ({ lista, tituloLista, user, investigadorId, onCal
                     Ver Documento
                   </a>
 
-                  {/* Solo el dueño del archivo o el docente/admin pueden eliminarlo */}
                   {(esDueno || esDocente) && (
                     <button 
                       onClick={() => onEliminar(tarea)} 
@@ -227,7 +225,7 @@ export default function ProyectoDetalle() {
       <div class="fecha">Felipe Carrillo Puerto, Q. Roo a ${fechaHoy}</div>
       <div class="destinatario"><strong>A QUIEN CORRESPONDA:</strong></div>
       <div class="cuerpo">Por medio de la presente, se hace constar formalmente que el estudiante <strong>${user?.nombre_completo || 'ESTUDIANTE'}</strong> ha sido formalmente <strong>ACEPTADO</strong> para integrarse y colaborar activamente en las actividades del siguiente proyecto de investigación:</div>
-      <div class="datos-proyecto"><p><strong>Proyecto:</strong> ${proyecto.titulo}</p><p><strong>Objetivo:</strong> ${proyecto.objetivo || 'Desarrollo de investigación.'}</p><p><strong>Investigador Responsable:</strong> ${proyecto.investigador?.nombre_completo || 'Docente Titular Asignado'}</p></div>
+      <div class="datos-proyecto"><p><strong>Proyecto:</strong> ${proyecto.titulo}</p><p><strong>Objetivo General:</strong> ${proyecto.objetivo_general || proyecto.objetivo || 'Desarrollo de investigación.'}</p><p><strong>Investigador Responsable:</strong> ${proyecto.investigador?.nombre_completo || 'Docente Titular Asignado'}</p></div>
       <div class="cuerpo">El estudiante llevará a cabo sus entregables, desarrollo técnico y seguimiento a través de la plataforma institucional durante el periodo estipulado para el cumplimiento satisfactorio de sus metas académicas.</div>
       <div class="firma-container"><div class="linea"></div><strong>${proyecto.investigador?.nombre_completo || 'Investigador Titular'}</strong><br><span style="font-size: 12px; color: #64748b;">Investigador Responsable del Proyecto</span></div>
       <script>window.onload = function() { window.print(); window.onafterprint = function() { window.close(); }; };</script>
@@ -328,14 +326,24 @@ export default function ProyectoDetalle() {
       if (errStorage) console.error("Error al borrar archivo de Storage:", errStorage);
     }
 
-    const { error } = await supabase.from('tareas_entregables').delete().eq('id', tarea.id);
+    const { data, error } = await supabase
+      .from('tareas_entregables')
+      .delete()
+      .eq('id', tarea.id)
+      .select(); 
     
     if (error) {
-      alert("Error al eliminar el entregable de la base de datos.");
+      alert(`Error al eliminar el entregable: ${error.message}`);
       console.error(error);
-    } else {
-      setEntregables(entregables.filter(t => t.id !== tarea.id));
+      return;
     }
+
+    if (!data || data.length === 0) {
+      alert("La base de datos bloqueó la eliminación (0 filas afectadas). Verifica tus permisos.");
+      return;
+    }
+
+    setEntregables(entregables.filter(t => t.id !== tarea.id));
   };
 
   if (loading) return <div className="min-h-screen flex justify-center items-center">Cargando detalles...</div>;
@@ -362,10 +370,29 @@ export default function ProyectoDetalle() {
               <h2 className="text-lg font-bold text-slate-900">Detalle de la Propuesta</h2>
             </div>
             <div className="border border-t-0 border-slate-200 rounded-b-lg p-6 space-y-4">
-              <InfoBox titulo="Descripción" texto={proyecto.descripcion} />
-              <InfoBox titulo="Objetivo" texto={proyecto.objetivo} />
-              <InfoBox titulo="Pre-requisitos" texto={proyecto.pre_requisitos} />
-              <InfoBox titulo="Requisitos" texto={proyecto.requisitos} />
+              {/* LOS 4 PUNTOS ACTUALIZADOS */}
+              <InfoBox titulo="Planteamiento del problema" texto={proyecto.planteamiento_problema || proyecto.descripcion} />
+              <InfoBox titulo="Objetivo general" texto={proyecto.objetivo_general || proyecto.objetivo} />
+              <InfoBox titulo="Objetivos Específicos" texto={proyecto.objetivos_especificos || proyecto.pre_requisitos} />
+              <InfoBox titulo="Delimitación" texto={proyecto.delimitacion || proyecto.requisitos} />
+              
+              {/* === SECCIÓN PROTOCOLO OFICIAL DESCARGABLE === */}
+              {proyecto.documento_protocolo_url && (
+                <div className="mt-6 p-5 bg-blue-50 rounded-lg border border-blue-100 flex items-center justify-between flex-wrap gap-4">
+                  <div>
+                    <h4 className="text-sm font-bold text-blue-900 flex items-center gap-2">
+                      <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                      Convocatoria / Protocolo Oficial
+                    </h4>
+                    <p className="text-xs text-blue-700 mt-1">Revisa el documento original de investigación planteado por el docente.</p>
+                  </div>
+                  <a href={proyecto.documento_protocolo_url} target="_blank" rel="noreferrer" className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-md text-sm font-semibold transition-colors shadow-sm flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    Descargar Documento
+                  </a>
+                </div>
+              )}
+              {/* ============================================== */}
               
               {/* VISUALIZACIÓN DE CUPOS */}
               <div className="mt-8 pt-4 border-t border-slate-100 text-sm flex flex-col md:flex-row justify-between items-center gap-4">
@@ -406,7 +433,7 @@ export default function ProyectoDetalle() {
           </div>
         </div>
 
-        {/* ESPACIO DE TRABAJO Y ENTREGABLES COMPARTIDO */}
+        {/* ESPACIO DE TRABAJO COMPARTIDO */}
         {(yaPostulado === 'Aceptado' || user?.id === proyecto.investigador_id || user?.rol === 'Administrador') && (
           <div className="bg-slate-900 rounded-xl shadow-lg border border-slate-700 overflow-hidden">
             <div className="p-6 border-b border-slate-700 bg-slate-800">
@@ -422,7 +449,7 @@ export default function ProyectoDetalle() {
             </div>
 
             <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Formulario para Estudiantes */}
+              {/* Formulario Estudiante */}
               {user?.rol === 'Estudiante' && (
                 <div className="lg:col-span-1 bg-slate-800 p-5 rounded-lg border border-slate-700 h-fit">
                   <h3 className="text-white font-semibold mb-4 border-b border-slate-700 pb-2">Subir Documento</h3>
@@ -465,7 +492,7 @@ export default function ProyectoDetalle() {
                 </div>
               )}
 
-              {/* Listado de Entregas Visible para el equipo */}
+              {/* Listado de Entregas */}
               <div className={gridClassNames}>
                 <RenderizarEntregables 
                   lista={entregables.filter(t => t.tipo_entregable === 'Reporte Preliminar' || t.tipo_entregable === 'Reporte Final')} 

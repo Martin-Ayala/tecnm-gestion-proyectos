@@ -22,25 +22,30 @@ export default function Dashboard() {
   // Estados exclusivos del ESTUDIANTE
   const [misPostulaciones, setMisPostulaciones] = useState([]);
 
-  // Estados exclusivos del INVESTIGADOR / ADMINISTRADOR
+  // Estados Modal CREAR PROYECTO
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [nuevoTitulo, setNuevoTitulo] = useState('');
-  const [nuevaDescripcion, setNuevaDescripcion] = useState('');
-  const [nuevoObjetivo, setNuevoObjetivo] = useState(''); 
-  const [nuevoPreRequisitos, setNuevoPreRequisitos] = useState(''); 
-  const [nuevoRequisitos, setNuevoRequisitos] = useState('');
+  const [nuevoPlanteamiento, setNuevoPlanteamiento] = useState('');
+  const [nuevoObjetivoGeneral, setNuevoObjetivoGeneral] = useState(''); 
+  const [nuevoObjetivosEspecificos, setNuevoObjetivosEspecificos] = useState(''); 
+  const [nuevaDelimitacion, setNuevaDelimitacion] = useState('');
   const [cuposRequeridos, setCuposRequeridos] = useState(1);
+  const [protocoloFile, setProtocoloFile] = useState(null);
+  const [protocoloUrl, setProtocoloUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Estados Modal EDITAR PROYECTO
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [proyectoEditando, setProyectoEditando] = useState(null);
   const [editTitulo, setEditTitulo] = useState('');
-  const [editDescripcion, setEditDescripcion] = useState('');
-  const [editObjetivo, setEditObjetivo] = useState(''); 
-  const [editPreRequisitos, setEditPreRequisitos] = useState(''); 
-  const [editRequisitos, setEditRequisitos] = useState(''); 
+  const [editPlanteamiento, setEditPlanteamiento] = useState('');
+  const [editObjetivoGeneral, setEditObjetivoGeneral] = useState(''); 
+  const [editObjetivosEspecificos, setEditObjetivosEspecificos] = useState(''); 
+  const [editDelimitacion, setEditDelimitacion] = useState(''); 
   const [editEstado, setEditEstado] = useState('');
   const [editCupos, setEditCupos] = useState(1);
+  const [editProtocoloFile, setEditProtocoloFile] = useState(null);
+  const [editProtocoloUrl, setEditProtocoloUrl] = useState('');
 
   const [isPostulacionesModalOpen, setIsPostulacionesModalOpen] = useState(false);
   const [postulaciones, setPostulaciones] = useState([]);
@@ -56,7 +61,7 @@ export default function Dashboard() {
       if (!user) return;
       setLoadingDatos(true);
 
-      // 1. CARGAMOS PROYECTOS JUNTO CON SUS POSTULACIONES (Para calcular cupos ocupados)
+      // 1. CARGAMOS PROYECTOS JUNTO CON SUS POSTULACIONES
       const { data: dataProyectos, error: errProyectos } = await supabase
         .from('proyectos')
         .select(`
@@ -75,7 +80,7 @@ export default function Dashboard() {
           .from('postulaciones')
           .select(`
             id, estado, fecha_postulacion, 
-            proyecto:proyectos!id_proyecto(id, titulo, descripcion, investigador:usuarios!investigador_id(nombre_completo))
+            proyecto:proyectos!id_proyecto(id, titulo, planteamiento_problema, descripcion, investigador:usuarios!investigador_id(nombre_completo))
           `)
           .eq('id_estudiante', user.id)
           .order('fecha_postulacion', { ascending: false });
@@ -95,16 +100,43 @@ export default function Dashboard() {
   const handleCrearProyecto = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
+    let finalUrl = '';
+
+    // Si seleccionó un archivo PDF de protocolo, lo subimos primero a Supabase Storage
+    if (protocoloFile) {
+      const ext = protocoloFile.name.split('.').pop();
+      const fileName = `protocolo_${Date.now()}_${user.id}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from('documentos').upload(`protocolos/${fileName}`, protocoloFile);
+      
+      if (uploadError) { 
+        alert("Error al subir el archivo de protocolo: " + uploadError.message); 
+        setIsSubmitting(false); 
+        return; 
+      }
+      
+      const { data: urlData } = supabase.storage.from('documentos').getPublicUrl(`protocolos/${fileName}`);
+      finalUrl = urlData.publicUrl;
+    } else if (protocoloUrl) {
+      // Si pegó un enlace de Google Drive
+      finalUrl = protocoloUrl;
+    }
+
     const { error } = await supabase.from('proyectos').insert([
       { 
         titulo: nuevoTitulo, 
-        descripcion: nuevaDescripcion, 
-        objetivo: nuevoObjetivo,
-        pre_requisitos: nuevoPreRequisitos, 
-        requisitos: nuevoRequisitos,
+        planteamiento_problema: nuevoPlanteamiento, 
+        objetivo_general: nuevoObjetivoGeneral,
+        objetivos_especificos: nuevoObjetivosEspecificos, 
+        delimitacion: nuevaDelimitacion,
         estado: 'En preparación', 
         investigador_id: user.id,
-        cupos_requeridos: cuposRequeridos
+        cupos_requeridos: cuposRequeridos,
+        documento_protocolo_url: finalUrl, // Guardamos la URL final del protocolo
+        // Fallback temporal para compatibilidad de BD si aún no has borrado estas columnas
+        descripcion: nuevoPlanteamiento,
+        objetivo: nuevoObjetivoGeneral,
+        pre_requisitos: nuevoObjetivosEspecificos,
+        requisitos: nuevaDelimitacion
       }
     ]);
 
@@ -113,8 +145,14 @@ export default function Dashboard() {
       console.error("Detalle del error:", error);
     } else {
       setIsModalOpen(false);
-      setNuevoTitulo(''); setNuevaDescripcion(''); setNuevoObjetivo('');
-      setNuevoPreRequisitos(''); setNuevoRequisitos(''); setCuposRequeridos(1);
+      setNuevoTitulo(''); 
+      setNuevoPlanteamiento(''); 
+      setNuevoObjetivoGeneral('');
+      setNuevoObjetivosEspecificos(''); 
+      setNuevaDelimitacion(''); 
+      setCuposRequeridos(1);
+      setProtocoloFile(null);
+      setProtocoloUrl('');
       setRefresh(prev => prev + 1); 
     }
     setIsSubmitting(false);
@@ -130,26 +168,52 @@ export default function Dashboard() {
   const abrirModalEdicion = (proyecto) => {
     setProyectoEditando(proyecto.id); 
     setEditTitulo(proyecto.titulo); 
-    setEditDescripcion(proyecto.descripcion || '');
-    setEditObjetivo(proyecto.objetivo || ''); 
-    setEditPreRequisitos(proyecto.pre_requisitos || '');
-    setEditRequisitos(proyecto.requisitos || ''); 
+    setEditPlanteamiento(proyecto.planteamiento_problema || proyecto.descripcion || '');
+    setEditObjetivoGeneral(proyecto.objetivo_general || proyecto.objetivo || ''); 
+    setEditObjetivosEspecificos(proyecto.objetivos_especificos || proyecto.pre_requisitos || '');
+    setEditDelimitacion(proyecto.delimitacion || proyecto.requisitos || ''); 
     setEditEstado(proyecto.estado === 'Borrador' ? 'En preparación' : (proyecto.estado || 'En preparación'));
     setEditCupos(proyecto.cupos_requeridos || 1);
+    setEditProtocoloUrl(proyecto.documento_protocolo_url || ''); // Cargar URL si existe
+    setEditProtocoloFile(null);
     setIsEditModalOpen(true);
   };
 
   const handleActualizarProyecto = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
+    let finalUrl = editProtocoloUrl; 
+
+    // Si seleccionó un NUEVO archivo, lo subimos y reemplazamos la URL
+    if (editProtocoloFile) {
+      const ext = editProtocoloFile.name.split('.').pop();
+      const fileName = `protocolo_${Date.now()}_${user.id}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from('documentos').upload(`protocolos/${fileName}`, editProtocoloFile);
+      
+      if (uploadError) { 
+        alert("Error al subir el nuevo protocolo: " + uploadError.message); 
+        setIsSubmitting(false); 
+        return; 
+      }
+      
+      const { data: urlData } = supabase.storage.from('documentos').getPublicUrl(`protocolos/${fileName}`);
+      finalUrl = urlData.publicUrl;
+    }
+
     const { error } = await supabase.from('proyectos').update({ 
         titulo: editTitulo, 
-        descripcion: editDescripcion, 
-        objetivo: editObjetivo,
-        pre_requisitos: editPreRequisitos, 
-        requisitos: editRequisitos, 
+        planteamiento_problema: editPlanteamiento, 
+        objetivo_general: editObjetivoGeneral,
+        objetivos_especificos: editObjetivosEspecificos, 
+        delimitacion: editDelimitacion, 
         estado: editEstado,
-        cupos_requeridos: editCupos
+        cupos_requeridos: editCupos,
+        documento_protocolo_url: finalUrl, // Actualizamos la URL del protocolo
+        // Fallbacks
+        descripcion: editPlanteamiento,
+        objetivo: editObjetivoGeneral,
+        pre_requisitos: editObjetivosEspecificos,
+        requisitos: editDelimitacion
       }).eq('id', proyectoEditando);
       
     if (error) alert("Error al guardar los cambios.");
@@ -179,7 +243,7 @@ export default function Dashboard() {
       alert("Error al actualizar el estado.");
     } else {
       setPostulaciones(postulaciones.map(p => p.id === postulacionId ? { ...p, estado: nuevoEstado } : p));
-      setRefresh(prev => prev + 1); // Refrescar catálogo para recalcular barras de cupos
+      setRefresh(prev => prev + 1); 
 
       if (post?.id_estudiante) {
         await supabase.from('notificaciones').insert([
@@ -209,10 +273,11 @@ export default function Dashboard() {
 
   // Lógica de filtrado en memoria
   const proyectosFiltrados = proyectos.filter((proy) => {
+    const textoBuscar = busqueda.toLowerCase();
     const coincideTexto = 
-      proy.titulo?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      proy.descripcion?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      proy.investigador?.nombre_completo?.toLowerCase().includes(busqueda.toLowerCase());
+      proy.titulo?.toLowerCase().includes(textoBuscar) ||
+      (proy.planteamiento_problema || proy.descripcion)?.toLowerCase().includes(textoBuscar) ||
+      proy.investigador?.nombre_completo?.toLowerCase().includes(textoBuscar);
 
     const coincideEstado = 
       filtroEstado === 'Todos' || 
@@ -238,7 +303,9 @@ export default function Dashboard() {
 
       <main className="p-6 md:p-8 max-w-7xl mx-auto relative z-10">
         
-        {/* SECCIÓN 1: MÉTRICAS Y CABECERA */}
+        {/* ========================================== */}
+        {/* SECCIÓN 1: MÉTRICAS Y CABECERA (PARA TODOS) */}
+        {/* ========================================== */}
         <div className="flex justify-between items-center mb-8">
           <div>
             <h2 className="text-2xl font-bold text-slate-800">Dashboard Analítico</h2>
@@ -309,7 +376,9 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* ========================================== */}
         {/* SECCIÓN 2: MIS POSTULACIONES (SOLO ESTUDIANTE) */}
+        {/* ========================================== */}
         {user?.rol === 'Estudiante' && (
           <div className="mb-12">
             <h3 className="text-lg font-bold text-slate-800 mb-6 border-b border-slate-200 pb-2">Mis Postulaciones</h3>
@@ -335,7 +404,7 @@ export default function Dashboard() {
                     </div>
                     
                     <p className="text-sm text-slate-500 mb-6 flex-grow line-clamp-2">
-                      {post.proyecto?.descripcion}
+                      {post.proyecto?.planteamiento_problema || post.proyecto?.descripcion}
                     </p>
 
                     <div className="flex justify-between items-center border-t border-slate-100 pt-4 mt-auto">
@@ -368,7 +437,7 @@ export default function Dashboard() {
               type="text"
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar por proyecto, descripción o docente..."
+              placeholder="Buscar por proyecto, planteamiento o docente..."
               className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
             />
             <svg
@@ -393,7 +462,7 @@ export default function Dashboard() {
               <option value="Todos">Todos los estados</option>
               <option value="Activo">Activos</option>
               <option value="En preparación">En preparación</option>
-              <option value="Finalizado">Finalizados</option>
+              <option value="Finalizado">Finalizado</option>
             </select>
 
             {(busqueda || filtroEstado !== 'Todos') && (
@@ -462,7 +531,9 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  <p className="text-slate-600 text-sm mb-4 line-clamp-3 flex-grow">{proyecto.descripcion}</p>
+                  <p className="text-slate-600 text-sm mb-4 line-clamp-3 flex-grow">
+                    {proyecto.planteamiento_problema || proyecto.descripcion}
+                  </p>
                   
                   {/* BARRA DE CUPOS DISPONIBLES */}
                   <div className="mb-4 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
@@ -591,20 +662,20 @@ export default function Dashboard() {
                     <input type="text" required value={nuevoTitulo} onChange={(e) => setNuevoTitulo(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Descripción</label>
-                    <textarea required rows="3" value={nuevaDescripcion} onChange={(e) => setNuevaDescripcion(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Planteamiento del problema</label>
+                    <textarea required rows="3" value={nuevoPlanteamiento} onChange={(e) => setNuevoPlanteamiento(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Objetivo</label>
-                    <textarea required rows="2" value={nuevoObjetivo} onChange={(e) => setNuevoObjetivo(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Objetivo general</label>
+                    <textarea required rows="2" value={nuevoObjetivoGeneral} onChange={(e) => setNuevoObjetivoGeneral(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Pre-requisitos</label>
-                    <textarea required rows="2" value={nuevoPreRequisitos} onChange={(e) => setNuevoPreRequisitos(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Objetivos Específicos</label>
+                    <textarea required rows="2" value={nuevoObjetivosEspecificos} onChange={(e) => setNuevoObjetivosEspecificos(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Requisitos</label>
-                    <textarea required rows="2" value={nuevoRequisitos} onChange={(e) => setNuevoRequisitos(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Delimitación</label>
+                    <textarea required rows="2" value={nuevaDelimitacion} onChange={(e) => setNuevaDelimitacion(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Límite de Alumnos Permitidos</label>
@@ -615,9 +686,38 @@ export default function Dashboard() {
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
                     />
                   </div>
+
+                  {/* === SECCIÓN DEL PROTOCOLO OFICIAL (CREAR) === */}
+                  <div className="pt-3 border-t border-slate-100">
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Protocolo Oficial / Convocatoria (Opcional)</label>
+                    <div className="space-y-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-500 mb-1">Subir Archivo PDF</label>
+                        <input 
+                          type="file" accept=".pdf" 
+                          onChange={(e) => {setProtocoloFile(e.target.files[0]); setProtocoloUrl('');}} 
+                          className="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer" 
+                        />
+                      </div>
+                      <div className="flex items-center gap-2"><hr className="flex-grow border-slate-200"/><span className="text-xs text-slate-400 font-medium">O</span><hr className="flex-grow border-slate-200"/></div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-500 mb-1">Enlace Externo (Google Drive)</label>
+                        <input 
+                          type="url" 
+                          value={protocoloUrl} 
+                          onChange={(e) => {setProtocoloUrl(e.target.value); setProtocoloFile(null);}} 
+                          placeholder="https://drive.google.com/..." 
+                          className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
+                          disabled={!!protocoloFile} 
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  {/* ============================================== */}
+
                   <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
                     <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg">Cancelar</button>
-                    <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-blue-600 text-white font-medium hover:bg-blue-700 rounded-lg disabled:opacity-50">Guardar</button>
+                    <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-blue-600 text-white font-medium hover:bg-blue-700 rounded-lg disabled:opacity-50">{isSubmitting ? 'Guardando...' : 'Guardar'}</button>
                   </div>
                 </form>
               </div>
@@ -637,20 +737,20 @@ export default function Dashboard() {
                     <input type="text" required value={editTitulo} onChange={(e) => setEditTitulo(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Descripción</label>
-                    <textarea required rows="3" value={editDescripcion} onChange={(e) => setEditDescripcion(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Planteamiento del problema</label>
+                    <textarea required rows="3" value={editPlanteamiento} onChange={(e) => setEditPlanteamiento(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Objetivo</label>
-                    <textarea required rows="2" value={editObjetivo} onChange={(e) => setEditObjetivo(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Objetivo general</label>
+                    <textarea required rows="2" value={editObjetivoGeneral} onChange={(e) => setEditObjetivoGeneral(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Pre-requisitos</label>
-                    <textarea required rows="2" value={editPreRequisitos} onChange={(e) => setEditPreRequisitos(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Objetivos Específicos</label>
+                    <textarea required rows="2" value={editObjetivosEspecificos} onChange={(e) => setEditObjetivosEspecificos(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Requisitos</label>
-                    <textarea required rows="2" value={editRequisitos} onChange={(e) => setEditRequisitos(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Delimitación</label>
+                    <textarea required rows="2" value={editDelimitacion} onChange={(e) => setEditDelimitacion(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Límite de Alumnos Permitidos</label>
@@ -669,9 +769,38 @@ export default function Dashboard() {
                       <option value="Finalizado">Finalizado</option>
                     </select>
                   </div>
+
+                  {/* === SECCIÓN DEL PROTOCOLO OFICIAL (EDITAR) === */}
+                  <div className="pt-3 border-t border-slate-100">
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Protocolo Oficial / Convocatoria</label>
+                    <div className="space-y-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-500 mb-1">Subir o reemplazar Archivo PDF</label>
+                        <input 
+                          type="file" accept=".pdf" 
+                          onChange={(e) => {setEditProtocoloFile(e.target.files[0]); setEditProtocoloUrl('');}} 
+                          className="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer" 
+                        />
+                      </div>
+                      <div className="flex items-center gap-2"><hr className="flex-grow border-slate-200"/><span className="text-xs text-slate-400 font-medium">O</span><hr className="flex-grow border-slate-200"/></div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-500 mb-1">Enlace Externo (Google Drive)</label>
+                        <input 
+                          type="url" 
+                          value={editProtocoloUrl} 
+                          onChange={(e) => {setEditProtocoloUrl(e.target.value); setEditProtocoloFile(null);}} 
+                          placeholder="https://drive.google.com/..." 
+                          className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
+                          disabled={!!editProtocoloFile} 
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  {/* ============================================== */}
+
                   <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
                     <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg">Cancelar</button>
-                    <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-emerald-600 text-white font-medium hover:bg-emerald-700 rounded-lg disabled:opacity-50">Actualizar</button>
+                    <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-emerald-600 text-white font-medium hover:bg-emerald-700 rounded-lg disabled:opacity-50">{isSubmitting ? 'Actualizando...' : 'Actualizar'}</button>
                   </div>
                 </form>
               </div>
