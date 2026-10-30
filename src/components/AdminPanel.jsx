@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
-export default function AdminPanel({ proyectos, onRefreshProyectos }) {
+export default function AdminPanel({ onRefreshProyectos, user }) {
     const [tabActiva, setTabActiva] = useState('usuarios');
 
     // Estados para Usuarios
@@ -10,14 +10,16 @@ export default function AdminPanel({ proyectos, onRefreshProyectos }) {
     const [busquedaUsuario, setBusquedaUsuario] = useState('');
     const [filtroRol, setFiltroRol] = useState('Todos');
 
-    // Estados para Postulaciones Globales
+    // Estados para Postulaciones
     const [todasPostulaciones, setTodasPostulaciones] = useState([]);
     const [loadingPostulaciones, setLoadingPostulaciones] = useState(false);
 
-    // Estados para Aviso Global (Broadcast)
+    // Estados para Aviso Global (Solo Admin)
     const [mensajeGlobal, setMensajeGlobal] = useState('');
     const [destinoAviso, setDestinoAviso] = useState('Todos');
     const [enviandoAviso, setEnviandoAviso] = useState(false);
+
+    const esAdmin = user?.rol === 'Administrador';
 
     useEffect(() => {
         const cargarDatosIniciales = async () => {
@@ -36,23 +38,29 @@ export default function AdminPanel({ proyectos, onRefreshProyectos }) {
             const { data: dataPostulaciones, error: errPostulaciones } = await supabase
                 .from('postulaciones')
                 .select(`
-          id, estado, fecha_postulacion, documento_kardex_url, id_estudiante,
-          estudiante:usuarios!id_estudiante(nombre_completo, correo_institucional, numero_control, carrera),
-          proyecto:proyectos!id_proyecto(id, titulo, investigador:usuarios!investigador_id(nombre_completo))
-        `)
+                  id, estado, fecha_postulacion, documento_kardex_url, id_estudiante,
+                  estudiante:usuarios!id_estudiante(nombre_completo, correo_institucional, numero_control, carrera),
+                  proyecto:proyectos!id_proyecto(id, titulo, investigador_id, investigador:usuarios!investigador_id(nombre_completo))
+                `)
                 .order('fecha_postulacion', { ascending: false });
 
-            if (errPostulaciones) console.error('Error cargando postulaciones globales:', errPostulaciones);
-            else setTodasPostulaciones(dataPostulaciones || []);
+            if (errPostulaciones) console.error('Error cargando postulaciones:', errPostulaciones);
+            else {
+                // Si es investigador, filtramos para que solo vea las postulaciones de SUS proyectos
+                const post = esAdmin 
+                    ? dataPostulaciones 
+                    : dataPostulaciones.filter(p => p.proyecto?.investigador_id === user?.id);
+                setTodasPostulaciones(post || []);
+            }
             setLoadingPostulaciones(false);
         };
 
         cargarDatosIniciales();
-    }, []);
+    }, [user, esAdmin]);
 
-    // Cambiar rol de un usuario
+    // Cambiar rol de un usuario (SOLO ADMIN)
     const handleCambiarRol = async (usuarioId, nuevoRol) => {
-        // Agregamos .select() para comprobar que la fila realmente se actualizó en la BD
+        if (!esAdmin) return;
         const { data, error } = await supabase
             .from('usuarios')
             .update({ rol: nuevoRol })
@@ -61,7 +69,6 @@ export default function AdminPanel({ proyectos, onRefreshProyectos }) {
 
         if (error) {
             alert(`Error al cambiar el rol: ${error.message}`);
-            console.error(error);
             return;
         }
 
@@ -70,39 +77,26 @@ export default function AdminPanel({ proyectos, onRefreshProyectos }) {
             return;
         }
 
-        // Si llegó aquí, realmente se guardó en la base de datos
         setUsuarios(usuarios.map(u => u.id === usuarioId ? { ...u, rol: nuevoRol } : u));
-        alert(`Rol actualizado exitosamente a "${nuevoRol}". Ahora al refrescar la página se mantendrá.`);
+        alert(`Rol actualizado exitosamente a "${nuevoRol}".`);
     };
 
-    // Eliminar usuario de la tabla pública
+    // Eliminar usuario de la tabla pública (SOLO ADMIN)
     const handleEliminarUsuario = async (usuarioId, nombre) => {
+        if (!esAdmin) return;
         if (!window.confirm(`¿Estás seguro de eliminar a "${nombre}" del sistema? Esta acción borrará también sus proyectos y postulaciones asociadas.`)) return;
 
-        const { data, error } = await supabase
-            .from('usuarios')
-            .delete()
-            .eq('id', usuarioId)
-            .select();
+        const { data, error } = await supabase.from('usuarios').delete().eq('id', usuarioId).select();
 
-        if (error) {
-            alert(`No se pudo eliminar el usuario: ${error.message}`);
-            console.error(error);
-            return;
-        }
+        if (error) { alert(`No se pudo eliminar el usuario: ${error.message}`); return; }
+        if (!data || data.length === 0) { alert('La base de datos bloqueó la eliminación (0 filas afectadas).'); return; }
 
-        if (!data || data.length === 0) {
-            alert('La base de datos bloqueó la eliminación (0 filas afectadas). Verifica los permisos en Supabase.');
-            return;
-        }
-
-        // Si llegó aquí, realmente se eliminó en Supabase
         setUsuarios(usuarios.filter(u => u.id !== usuarioId));
         if (onRefreshProyectos) onRefreshProyectos();
         alert(`Usuario "${nombre}" eliminado con éxito.`);
     };
 
-    // Intervenir postulación como Administrador
+    // Intervenir postulación (ADMIN O INVESTIGADOR DUEÑO DEL PROYECTO)
     const handleDictamenAdmin = async (post, nuevoEstado) => {
         const { error } = await supabase
             .from('postulaciones')
@@ -115,21 +109,22 @@ export default function AdminPanel({ proyectos, onRefreshProyectos }) {
             setTodasPostulaciones(todasPostulaciones.map(p => p.id === post.id ? { ...p, estado: nuevoEstado } : p));
 
             if (post.id_estudiante) {
+                const autorDictamen = esAdmin ? "[Administración]" : "[Investigador Titular]";
                 await supabase.from('notificaciones').insert([
                     {
                         usuario_id: post.id_estudiante,
                         tipo: nuevoEstado.toLowerCase(),
-                        mensaje: `[Administración] Tu postulación al proyecto "${post.proyecto?.titulo}" fue marcada como ${nuevoEstado}.`
+                        mensaje: `${autorDictamen} Tu postulación al proyecto "${post.proyecto?.titulo}" fue marcada como ${nuevoEstado}.`
                     }
                 ]);
             }
         }
     };
 
-    // Enviar notificación masiva
+    // Enviar notificación masiva (SOLO ADMIN)
     const handleEnviarAvisoGlobal = async (e) => {
         e.preventDefault();
-        if (!mensajeGlobal.trim()) return;
+        if (!esAdmin || !mensajeGlobal.trim()) return;
         setEnviandoAviso(true);
 
         const destinatarios = usuarios.filter(u => {
@@ -151,10 +146,8 @@ export default function AdminPanel({ proyectos, onRefreshProyectos }) {
 
         const { error } = await supabase.from('notificaciones').insert(filasNotificaciones);
 
-        if (error) {
-            alert('Error al enviar el comunicado masivo.');
-            console.error(error);
-        } else {
+        if (error) alert('Error al enviar el comunicado masivo.');
+        else {
             alert(`Comunicado enviado con éxito a ${destinatarios.length} usuario(s).`);
             setMensajeGlobal('');
         }
@@ -163,32 +156,27 @@ export default function AdminPanel({ proyectos, onRefreshProyectos }) {
 
     // Exportar datos a CSV compatible con Excel
     const exportarCSV = (tipo) => {
-        let encabezados;
-        let filas;
-        let nombreArchivo;
+        let encabezados, filas, nombreArchivo;
 
         if (tipo === 'usuarios') {
             encabezados = ['Nombre Completo', 'Rol', 'Correo Institucional', 'No. Control', 'Carrera', 'Grado Académico', 'Teléfono'];
             filas = usuarios.map(u => [
-                `"${u.nombre_completo || ''}"`,
-                `"${u.rol || ''}"`,
-                `"${u.correo_institucional || ''}"`,
-                `"${u.numero_control || 'N/A'}"`,
-                `"${u.carrera || 'N/A'}"`,
-                `"${u.grado_academico || 'N/A'}"`,
-                `"${u.telefono || 'N/A'}"`
+                `"${u.nombre_completo || ''}"`, `"${u.rol || ''}"`, `"${u.correo_institucional || ''}"`,
+                `"${u.numero_control || 'N/A'}"`, `"${u.carrera || 'N/A'}"`, `"${u.grado_academico || 'N/A'}"`, `"${u.telefono || 'N/A'}"`
             ]);
-            nombreArchivo = 'Padron_Usuarios_TecNM.csv';
+            nombreArchivo = 'Directorio_TecNM.csv';
         } else {
-            encabezados = ['Título del Proyecto', 'Estado', 'Investigador Responsable', 'Objetivo', 'Fecha de Creación'];
-            filas = proyectos.map(p => [
-                `"${(p.titulo || '').replace(/"/g, '""')}"`,
-                `"${p.estado || 'En preparación'}"`,
-                `"${p.investigador?.nombre_completo || 'Sin asignar'}"`,
-                `"${(p.objetivo || '').replace(/"/g, '""')}"`,
-                `"${p.fecha_creacion ? new Date(p.fecha_creacion).toLocaleDateString('es-MX') : ''}"`
+            // Si es investigador, exporta solo sus postulaciones
+            encabezados = ['Proyecto', 'Alumno', 'Correo Alumno', 'No. Control', 'Estado Postulación', 'Fecha'];
+            filas = todasPostulaciones.map(p => [
+                `"${(p.proyecto?.titulo || '').replace(/"/g, '""')}"`,
+                `"${p.estudiante?.nombre_completo || ''}"`,
+                `"${p.estudiante?.correo_institucional || ''}"`,
+                `"${p.estudiante?.numero_control || 'N/A'}"`,
+                `"${p.estado || ''}"`,
+                `"${p.fecha_postulacion ? new Date(p.fecha_postulacion).toLocaleDateString('es-MX') : ''}"`
             ]);
-            nombreArchivo = 'Reporte_Proyectos_TecNM.csv';
+            nombreArchivo = esAdmin ? 'Auditoria_Postulaciones_TecNM.csv' : 'Mis_Postulaciones_TecNM.csv';
         }
 
         const contenidoCSV = '\uFEFF' + [encabezados.join(','), ...filas.map(e => e.join(','))].join('\n');
@@ -208,7 +196,6 @@ export default function AdminPanel({ proyectos, onRefreshProyectos }) {
             u.nombre_completo?.toLowerCase().includes(busquedaUsuario.toLowerCase()) ||
             u.correo_institucional?.toLowerCase().includes(busquedaUsuario.toLowerCase()) ||
             u.numero_control?.toLowerCase().includes(busquedaUsuario.toLowerCase());
-
         const coincideRol = filtroRol === 'Todos' || u.rol === filtroRol;
         return coincideTexto && coincideRol;
     });
@@ -218,33 +205,33 @@ export default function AdminPanel({ proyectos, onRefreshProyectos }) {
 
     return (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-12">
-            {/* CABECERA DEL PANEL ADMIN */}
+            {/* CABECERA DEL PANEL */}
             <div className="bg-slate-900 text-white p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <div className="flex items-center gap-2">
-                        <span className="bg-amber-500 text-slate-950 text-xs font-extrabold px-2.5 py-0.5 rounded uppercase tracking-wider">
-                            Modo Administrador
+                        <span className={`text-slate-950 text-xs font-extrabold px-2.5 py-0.5 rounded uppercase tracking-wider ${esAdmin ? 'bg-amber-500' : 'bg-purple-400'}`}>
+                            {esAdmin ? 'Modo Administrador' : 'Panel del Investigador'}
                         </span>
-                        <h3 className="text-xl font-bold">Centro de Control Institucional</h3>
+                        <h3 className="text-xl font-bold">{esAdmin ? 'Centro de Control Institucional' : 'Gestión y Directorio'}</h3>
                     </div>
                     <p className="text-slate-400 text-sm mt-1">
-                        {usuarios.length} usuarios registrados ({totalEstudiantes} Estudiantes, {totalInvestigadores} Docentes) • {todasPostulaciones.length} postulaciones totales
+                        {usuarios.length} usuarios registrados ({totalEstudiantes} Estudiantes, {totalInvestigadores} Docentes) • {todasPostulaciones.length} {esAdmin ? 'postulaciones globales' : 'solicitudes a tus proyectos'}
                     </p>
                 </div>
 
-                {/* BOTONES DE EXPORTACIÓN A EXCEL */}
+                {/* BOTONES DE EXPORTACIÓN */}
                 <div className="flex gap-2 flex-wrap">
                     <button
                         onClick={() => exportarCSV('usuarios')}
                         className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5"
                     >
-                        📥 Exportar Usuarios (CSV)
+                        👥 Exportar Directorio
                     </button>
                     <button
-                        onClick={() => exportarCSV('proyectos')}
+                        onClick={() => exportarCSV('postulaciones')}
                         className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-sm"
                     >
-                        📊 Exportar Proyectos (CSV)
+                        📑 Exportar Postulaciones
                     </button>
                 </div>
             </div>
@@ -253,31 +240,31 @@ export default function AdminPanel({ proyectos, onRefreshProyectos }) {
             <div className="border-b border-slate-200 bg-slate-50 px-6 flex gap-6 overflow-x-auto">
                 <button
                     onClick={() => setTabActiva('usuarios')}
-                    className={`py-3.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${tabActiva === 'usuarios' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'
-                        }`}
+                    className={`py-3.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${tabActiva === 'usuarios' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
                 >
                     👥 Directorio de Usuarios ({usuarios.length})
                 </button>
                 <button
                     onClick={() => setTabActiva('postulaciones')}
-                    className={`py-3.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${tabActiva === 'postulaciones' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'
-                        }`}
+                    className={`py-3.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${tabActiva === 'postulaciones' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
                 >
-                    📑 Auditoría de Postulaciones ({todasPostulaciones.length})
+                    📑 {esAdmin ? 'Auditoría de Postulaciones' : 'Solicitudes a Mis Proyectos'} ({todasPostulaciones.length})
                 </button>
-                <button
-                    onClick={() => setTabActiva('avisos')}
-                    className={`py-3.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${tabActiva === 'avisos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'
-                        }`}
-                >
-                    📢 Enviar Comunicado Oficial
-                </button>
+                
+                {esAdmin && (
+                    <button
+                        onClick={() => setTabActiva('avisos')}
+                        className={`py-3.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${tabActiva === 'avisos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                    >
+                        📢 Enviar Comunicado Oficial
+                    </button>
+                )}
             </div>
 
             {/* CONTENIDO DE LAS PESTAÑAS */}
             <div className="p-6">
 
-                {/* PESTAÑA 1: DIRECTORIO Y GESTIÓN DE USUARIOS */}
+                {/* PESTAÑA 1: DIRECTORIO DE USUARIOS */}
                 {tabActiva === 'usuarios' && (
                     <div>
                         <div className="flex flex-col md:flex-row gap-4 justify-between mb-6">
@@ -314,7 +301,7 @@ export default function AdminPanel({ proyectos, onRefreshProyectos }) {
                                             <th className="p-3.5">Información Académica</th>
                                             <th className="p-3.5">Contacto</th>
                                             <th className="p-3.5">Rol Asignado</th>
-                                            <th className="p-3.5 text-right">Acciones</th>
+                                            {esAdmin && <th className="p-3.5 text-right">Acciones</th>}
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-200 text-sm">
@@ -340,27 +327,39 @@ export default function AdminPanel({ proyectos, onRefreshProyectos }) {
                                                     {u.telefono || 'No registrado'}
                                                 </td>
                                                 <td className="p-3.5">
-                                                    <select
-                                                        value={u.rol}
-                                                        onChange={(e) => handleCambiarRol(u.id, e.target.value)}
-                                                        className={`text-xs font-bold px-2.5 py-1.5 rounded-md border outline-none cursor-pointer ${u.rol === 'Administrador' ? 'bg-amber-50 text-amber-800 border-amber-300' :
-                                                            u.rol === 'Investigador' ? 'bg-purple-50 text-purple-800 border-purple-200' :
-                                                                'bg-blue-50 text-blue-800 border-blue-200'
-                                                            }`}
-                                                    >
-                                                        <option value="Estudiante">Estudiante</option>
-                                                        <option value="Investigador">Investigador</option>
-                                                        <option value="Administrador">Administrador</option>
-                                                    </select>
+                                                    {esAdmin ? (
+                                                        <select
+                                                            value={u.rol}
+                                                            onChange={(e) => handleCambiarRol(u.id, e.target.value)}
+                                                            className={`text-xs font-bold px-2.5 py-1.5 rounded-md border outline-none cursor-pointer ${u.rol === 'Administrador' ? 'bg-amber-50 text-amber-800 border-amber-300' :
+                                                                u.rol === 'Investigador' ? 'bg-purple-50 text-purple-800 border-purple-200' :
+                                                                    'bg-blue-50 text-blue-800 border-blue-200'
+                                                                }`}
+                                                        >
+                                                            <option value="Estudiante">Estudiante</option>
+                                                            <option value="Investigador">Investigador</option>
+                                                            <option value="Administrador">Administrador</option>
+                                                        </select>
+                                                    ) : (
+                                                        <span className={`text-xs font-bold px-2.5 py-1.5 rounded-md border ${
+                                                            u.rol === 'Administrador' ? 'bg-amber-50 text-amber-800 border-amber-300' :
+                                                                u.rol === 'Investigador' ? 'bg-purple-50 text-purple-800 border-purple-200' :
+                                                                    'bg-blue-50 text-blue-800 border-blue-200'
+                                                        }`}>
+                                                            {u.rol}
+                                                        </span>
+                                                    )}
                                                 </td>
-                                                <td className="p-3.5 text-right">
-                                                    <button
-                                                        onClick={() => handleEliminarUsuario(u.id, u.nombre_completo)}
-                                                        className="text-xs text-red-600 hover:text-red-800 font-semibold px-2 py-1 rounded hover:bg-red-50 transition-colors"
-                                                    >
-                                                        Eliminar
-                                                    </button>
-                                                </td>
+                                                {esAdmin && (
+                                                    <td className="p-3.5 text-right">
+                                                        <button
+                                                            onClick={() => handleEliminarUsuario(u.id, u.nombre_completo)}
+                                                            className="text-xs text-red-600 hover:text-red-800 font-semibold px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                                                        >
+                                                            Eliminar
+                                                        </button>
+                                                    </td>
+                                                )}
                                             </tr>
                                         ))}
                                     </tbody>
@@ -370,13 +369,13 @@ export default function AdminPanel({ proyectos, onRefreshProyectos }) {
                     </div>
                 )}
 
-                {/* PESTAÑA 2: AUDITORÍA GLOBAL DE POSTULACIONES */}
+                {/* PESTAÑA 2: BANDEJA DE POSTULACIONES */}
                 {tabActiva === 'postulaciones' && (
                     <div>
                         {loadingPostulaciones ? (
                             <p className="text-center py-8 text-slate-500 text-sm">Cargando postulaciones...</p>
                         ) : todasPostulaciones.length === 0 ? (
-                            <p className="text-center py-8 text-slate-500 text-sm">No hay postulaciones registradas en el sistema.</p>
+                            <p className="text-center py-8 text-slate-500 text-sm">No hay postulaciones registradas en esta vista.</p>
                         ) : (
                             <div className="overflow-x-auto border border-slate-200 rounded-lg">
                                 <table className="w-full text-left border-collapse">
@@ -386,7 +385,7 @@ export default function AdminPanel({ proyectos, onRefreshProyectos }) {
                                             <th className="p-3.5">Proyecto / Asesor</th>
                                             <th className="p-3.5">Kárdex</th>
                                             <th className="p-3.5">Estado</th>
-                                            <th className="p-3.5 text-right">Intervención Admin</th>
+                                            <th className="p-3.5 text-right">Dictamen</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-200 text-sm">
@@ -395,7 +394,7 @@ export default function AdminPanel({ proyectos, onRefreshProyectos }) {
                                                 <td className="p-3.5">
                                                     <p className="font-bold text-slate-800">{post.estudiante?.nombre_completo}</p>
                                                     <p className="text-xs text-slate-500">
-                                                        {post.estudiante?.numero_control ? `${post.estudiante.numero_control} • ` : ''}
+                                                        {post.estudiante?.numero_control ? `${post.estudiante.numero_control} - ` : ''}
                                                         {post.estudiante?.correo_institucional}
                                                     </p>
                                                 </td>
@@ -445,8 +444,8 @@ export default function AdminPanel({ proyectos, onRefreshProyectos }) {
                     </div>
                 )}
 
-                {/* PESTAÑA 3: COMUNICADOS Y NOTIFICACIONES GLOBALES */}
-                {tabActiva === 'avisos' && (
+                {/* PESTAÑA 3: COMUNICADOS GLOBALES (SOLO ADMIN) */}
+                {esAdmin && tabActiva === 'avisos' && (
                     <form onSubmit={handleEnviarAvisoGlobal} className="max-w-xl space-y-4">
                         <div>
                             <label className="block text-sm font-semibold text-slate-700 mb-1">
@@ -486,7 +485,6 @@ export default function AdminPanel({ proyectos, onRefreshProyectos }) {
                         </button>
                     </form>
                 )}
-
             </div>
         </div>
     );
