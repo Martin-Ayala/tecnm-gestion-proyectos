@@ -227,11 +227,29 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50 relative">
+      {/* BARRA DE NAVEGACIÓN CON ACCESO AL HOME */}
       <nav className="bg-white shadow-sm px-6 py-4 flex justify-between items-center border-b border-slate-200 sticky top-0 z-50">
-        <h1 className="text-xl font-bold text-blue-900">TecNM <span className="text-blue-600">Gestión Interna</span></h1>
         <div className="flex items-center gap-4">
+          <Link to="/" className="text-xl font-bold text-blue-900 hover:opacity-90 transition-opacity">
+            TecNM <span className="text-blue-600">Gestión Interna</span>
+          </Link>
+          <Link 
+            to="/" 
+            className="hidden sm:flex items-center gap-1.5 text-xs font-semibold bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 px-3 py-1.5 rounded-md border border-slate-200 transition-colors"
+          >
+            <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+            Ir al Inicio
+          </Link>
+        </div>
+        <div className="flex items-center gap-3">
           <span className="text-sm font-medium text-slate-600 hidden md:block">{user?.nombre_completo} <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs ml-2">{user?.rol}</span></span>
           <NotificacionesBell />
+          <Link 
+            to="/" 
+            className="sm:hidden text-xs bg-slate-100 text-slate-700 px-3 py-2 rounded-lg font-semibold hover:bg-slate-200 transition-colors"
+          >
+            Inicio
+          </Link>
           <button onClick={handleLogout} className="text-sm bg-slate-100 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 font-semibold transition-colors">Cerrar Sesión</button>
         </div>
       </nav>
@@ -293,6 +311,7 @@ export default function Dashboard() {
 
                   return (
                     <div key={proyecto.id} className="bg-white p-6 rounded-xl shadow-sm border-2 border-blue-200 hover:shadow-md transition-all flex flex-col h-full relative">
+                      
                       <div className="flex justify-between items-start mb-2 gap-2">
                         <h4 className="font-bold text-lg text-slate-800 leading-tight">{proyecto.titulo}</h4>
                         <span className={`text-xs px-2.5 py-1 rounded-full font-medium border flex-shrink-0 ${proyecto.estado?.toLowerCase() === 'activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
@@ -303,14 +322,20 @@ export default function Dashboard() {
                         </span>
                       </div>
 
-                      <div className="flex flex-wrap gap-2 mb-3">
-                        <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded font-bold">
+                      {/* ETIQUETAS CENTRADAS EN LÍNEAS SEPARADAS */}
+                      <div className="flex flex-col items-center justify-center gap-2 mt-2">
+                        <span className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-1 rounded-md flex items-center justify-center gap-1.5 font-bold shadow-sm w-fit text-center">
+                          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
                           {proyecto.carrera || 'Multidisciplinario'}
                         </span>
-                        <span className="text-[10px] bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded font-bold">
+                        <span className="text-xs bg-purple-50 text-purple-700 border border-purple-200 px-3 py-1 rounded-md flex items-center justify-center gap-1.5 font-bold shadow-sm w-fit text-center">
+                          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                           {proyecto.modalidad || 'Presencial'}
                         </span>
                       </div>
+
+                      {/* LÍNEA DIVISORIA */}
+                      <hr className="border-slate-100 my-4" />
 
                       <p className="text-slate-600 text-sm mb-4 line-clamp-2 flex-grow">
                         {proyecto.planteamiento_problema || proyecto.descripcion}
@@ -446,6 +471,7 @@ export default function Dashboard() {
 
               return (
                 <div key={proyecto.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all flex flex-col h-full">
+                  
                   <div className="flex justify-between items-start mb-2 gap-2">
                     <h3 className="font-bold text-lg text-slate-800 leading-tight">{proyecto.titulo}</h3>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -454,16 +480,20 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-2 mb-4 mt-1">
-                    <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded flex items-center gap-1 font-bold shadow-sm">
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                  {/* ETIQUETAS CENTRADAS EN LÍNEAS SEPARADAS */}
+                  <div className="flex flex-col items-center justify-center gap-2 mt-2">
+                    <span className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-1 rounded-md flex items-center justify-center gap-1.5 font-bold shadow-sm w-fit text-center">
+                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
                       {proyecto.carrera || 'Multidisciplinario'}
                     </span>
-                    <span className="text-[10px] bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded flex items-center gap-1 font-bold shadow-sm">
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                    <span className="text-xs bg-purple-50 text-purple-700 border border-purple-200 px-3 py-1 rounded-md flex items-center justify-center gap-1.5 font-bold shadow-sm w-fit text-center">
+                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                       {proyecto.modalidad || 'Presencial'}
                     </span>
                   </div>
+
+                  {/* LÍNEA DIVISORIA */}
+                  <hr className="border-slate-100 my-4" />
 
                   <p className="text-slate-600 text-sm mb-4 line-clamp-3 flex-grow">{proyecto.planteamiento_problema || proyecto.descripcion}</p>
 
