@@ -7,6 +7,7 @@ import Login from './pages/Login';
 import ProyectoDetalle from './pages/ProyectoDetalle';
 import RecuperarPassword from './pages/RecuperarPassword';
 import ActualizarPassword from './pages/ActualizarPassword';
+import Perfil from './pages/Perfil'; // Ajusta la ruta si es necesario
 
 
 const RutaProtegida = ({ children }) => {
@@ -34,8 +35,9 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/perfil" element={<Perfil />} />
           <Route path="/recuperar-password" element={<RecuperarPassword />} />
-<Route path="/actualizar-password" element={<ActualizarPassword />} />
+          <Route path="/actualizar-password" element={<ActualizarPassword />} />
           <Route path="/proyecto/:id" element={<ProyectoDetalle />} />
           <Route path="/dashboard" element={
             <RutaProtegida>
