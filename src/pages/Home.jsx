@@ -4,12 +4,12 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
 const OPCIONES_CARRERAS = [
-  "Multidisciplinario (Todas las carreras)",
-  "Ingeniería en Sistemas Computacionales",
-  "Ingeniería en Gestión Empresarial",
-  "Ingeniería Industrial",
-  "Ingeniería en Administración",
-  "Ingeniería en Industrias Alimentarias"
+    "Multidisciplinario (Todas las carreras)",
+    "Ingeniería en Sistemas Computacionales",
+    "Ingeniería en Gestión Empresarial",
+    "Ingeniería Industrial",
+    "Ingeniería en Administración",
+    "Ingeniería en Industrias Alimentarias"
 ];
 
 const OPCIONES_MODALIDAD = ["Presencial", "Híbrida", "Virtual"];
@@ -18,7 +18,7 @@ export default function Home() {
     const [proyectos, setProyectos] = useState([]);
     const [loading, setLoading] = useState(true);
     const { user } = useAuth();
-    
+
     // Estados para la barra de búsqueda y filtros
     const [busqueda, setBusqueda] = useState('');
     const [filtroModalidad, setFiltroModalidad] = useState('Todas');
@@ -43,14 +43,16 @@ export default function Home() {
     // Lógica de filtrado en tiempo real
     const proyectosFiltrados = proyectos.filter((proy) => {
         const textoBuscar = busqueda.toLowerCase();
-        
-        const coincideTexto = 
+
+        const coincideTexto =
             proy.titulo?.toLowerCase().includes(textoBuscar) ||
             proy.investigador?.nombre_completo?.toLowerCase().includes(textoBuscar) ||
             (proy.planteamiento_problema || proy.descripcion)?.toLowerCase().includes(textoBuscar);
 
         const coincideModalidad = filtroModalidad === 'Todas' || proy.modalidad === filtroModalidad;
-        const coincideCarrera = filtroCarrera === 'Todas' || proy.carrera === filtroCarrera;
+        const coincideCarrera = filtroCarrera === 'Todas' ||
+            proy.carrera?.includes(filtroCarrera) ||
+            proy.carrera?.includes('Multidisciplinario');
 
         return coincideTexto && coincideModalidad && coincideCarrera;
     });
@@ -64,11 +66,6 @@ export default function Home() {
                         <h1 className="text-2xl font-bold text-blue-900 tracking-wide">
                             TecNM <span className="text-blue-600">Felipe Carrillo Puerto</span>
                         </h1>
-                        <div className="hidden md:flex gap-6 text-sm font-medium">
-                            <a href="#proyectos" className="text-slate-600 hover:text-blue-600 transition-colors">Proyectos</a>
-                            <a href="#comite" className="text-slate-600 hover:text-blue-600 transition-colors">Comité Revisor</a>
-                            <a href="#fechas" className="text-slate-600 hover:text-blue-600 transition-colors">Fechas Importantes</a>
-                        </div>
                     </div>
 
                     <Link
@@ -85,33 +82,33 @@ export default function Home() {
                 <h2 className="text-3xl md:text-5xl font-bold text-slate-800 mb-8">
                     Propuestas de Investigación 2026
                 </h2>
-                
+
                 {/* BARRA DE BÚSQUEDA Y FILTRADO */}
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-4 w-full max-w-4xl">
                     <div className="relative w-full">
-                        <input 
-                            type="text" 
-                            value={busqueda} 
-                            onChange={(e) => setBusqueda(e.target.value)} 
-                            placeholder="Buscar por propuesta, investigador o planteamiento..." 
-                            className="w-full pl-11 pr-4 py-3 border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors shadow-sm" 
+                        <input
+                            type="text"
+                            value={busqueda}
+                            onChange={(e) => setBusqueda(e.target.value)}
+                            placeholder="Buscar por propuesta, investigador o planteamiento..."
+                            className="w-full pl-11 pr-4 py-3 border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors shadow-sm"
                         />
                         <svg className="w-6 h-6 text-slate-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                     </div>
-                    
+
                     <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
-                        <select 
-                            value={filtroModalidad} 
-                            onChange={(e) => setFiltroModalidad(e.target.value)} 
+                        <select
+                            value={filtroModalidad}
+                            onChange={(e) => setFiltroModalidad(e.target.value)}
                             className="bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
                         >
                             <option value="Todas">Modalidad: Todas</option>
                             {OPCIONES_MODALIDAD.map(m => <option key={m} value={m}>{m}</option>)}
                         </select>
 
-                        <select 
-                            value={filtroCarrera} 
-                            onChange={(e) => setFiltroCarrera(e.target.value)} 
+                        <select
+                            value={filtroCarrera}
+                            onChange={(e) => setFiltroCarrera(e.target.value)}
                             className="bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer max-w-[280px] truncate"
                         >
                             <option value="Todas">Carrera: Todas</option>
@@ -119,8 +116,8 @@ export default function Home() {
                         </select>
 
                         {(busqueda || filtroModalidad !== 'Todas' || filtroCarrera !== 'Todas') && (
-                            <button 
-                                onClick={() => { setBusqueda(''); setFiltroModalidad('Todas'); setFiltroCarrera('Todas'); }} 
+                            <button
+                                onClick={() => { setBusqueda(''); setFiltroModalidad('Todas'); setFiltroCarrera('Todas'); }}
                                 className="text-xs text-red-600 hover:text-red-700 font-bold whitespace-nowrap px-3 py-2 bg-red-50 hover:bg-red-100 rounded-lg transition-colors md:ml-auto"
                             >
                                 Limpiar Filtros
@@ -150,38 +147,62 @@ export default function Home() {
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {proyectosFiltrados.map((proyecto) => (
-                            <div key={proyecto.id} className="bg-white border border-slate-200 rounded-xl p-6 hover:shadow-lg transition-all flex flex-col h-full">
-                                <h4 className="text-lg font-bold text-slate-800 text-center mb-3 leading-snug">
-                                    {proyecto.titulo}
-                                </h4>
-
-                                {/* ETIQUETAS CENTRADAS EN LÍNEAS SEPARADAS */}
-                                <div className="flex flex-col items-center justify-center gap-2 mt-2">
-                                    <span className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-1 rounded-md flex items-center justify-center gap-1.5 font-bold shadow-sm w-fit text-center">
-                                        <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
-                                        {proyecto.carrera || 'Multidisciplinario'}
-                                    </span>
-                                    <span className="text-xs bg-purple-50 text-purple-700 border border-purple-200 px-3 py-1 rounded-md flex items-center justify-center gap-1.5 font-bold shadow-sm w-fit text-center">
-                                        <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
-                                        {proyecto.modalidad || 'Presencial'}
-                                    </span>
+                            <div
+                                key={proyecto.id}
+                                className="bg-white border border-slate-200 rounded-xl p-6 hover:shadow-lg transition-all flex flex-col h-full items-center text-center justify-between"
+                            >
+                                {/* CONTENEDOR DEL TÍTULO COMPLETO Y CENTRADO */}
+                                <div className="w-full min-h-[5.5rem] flex items-center justify-center">
+                                    <h4 className="text-lg font-extrabold text-slate-800 leading-snug">
+                                        {proyecto.titulo}
+                                    </h4>
                                 </div>
 
-                                {/* LÍNEA DIVISORIA */}
-                                <hr className="border-slate-100 my-4" />
+                                {/* LÍNEA DIVISORIA SUPERIOR */}
+                                <hr className="border-slate-100 my-2 w-full" />
 
-                                <div className="space-y-2 text-sm text-center mb-8 flex-grow">
-                                    <p><span className="text-slate-500">Institución:</span> TecNM Campus Felipe Carrillo Puerto</p>
-                                    <p><span className="text-slate-500">Investigador:</span> <span className="text-slate-700 font-medium uppercase">{proyecto.investigador?.nombre_completo}</span></p>
-                                    <p><span className="text-slate-500">Estado:</span> <span className="text-emerald-600 font-medium">Disponible</span></p>
+                                {/* BLOQUE CENTRAL CENTRADO VERTICALMENTE */}
+                                <div className="flex-1 flex flex-col justify-center items-center w-full gap-3 py-2">
+                                    <div className="flex flex-col items-center justify-center gap-1.5 text-sm w-full">
+                                        <p className="leading-snug">
+                                            <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md mr-1.5 text-xs uppercase tracking-wide">
+                                                Carrera:
+                                            </span>
+                                            <span className="font-semibold text-slate-800">{proyecto.carrera || 'Multidisciplinario'}</span>
+                                        </p>
+                                        <p className="leading-snug">
+                                            <span className="font-bold text-purple-700 bg-purple-50 border border-purple-100 px-2 py-0.5 rounded-md mr-1.5 text-xs uppercase tracking-wide">
+                                                Modalidad:
+                                            </span>
+                                            <span className="font-semibold text-slate-800">{proyecto.modalidad || 'Presencial'}</span>
+                                        </p>
+                                        <p className="leading-snug">
+                                            <span className="font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-md mr-1.5 text-xs uppercase tracking-wide">
+                                                Alumnos Permitidos:
+                                            </span>
+                                            <span className="font-semibold text-slate-800">{proyecto.cupos_requeridos || 1}</span>
+                                        </p>
+                                    </div>
+
+                                    <div className="flex flex-col items-center text-sm w-full mt-1">
+                                        <p>
+                                            <span className="font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-md mr-1.5 text-xs uppercase tracking-wide">
+                                                Investigador:
+                                            </span>
+                                            <span className="font-bold text-slate-800 uppercase block mt-1">{proyecto.investigador?.nombre_completo || 'No asignado'}</span>
+                                        </p>
+                                    </div>
                                 </div>
-                                
-                                <Link
-                                    to={`/proyecto/${proyecto.id}`}
-                                    className="w-full block text-center py-2.5 bg-slate-50 text-blue-600 border border-slate-200 font-medium rounded-md hover:bg-blue-50 transition-colors text-sm"
-                                >
-                                    Ver Detalle
-                                </Link>
+
+                                {/* BOTÓN EN LA PARTE INFERIOR */}
+                                <div className="w-full pt-3 mt-auto">
+                                    <Link
+                                        to={`/proyecto/${proyecto.id}`}
+                                        className="w-full block text-center py-2.5 bg-slate-50 text-blue-600 border border-slate-200 font-medium rounded-md hover:bg-blue-50 transition-colors text-sm"
+                                    >
+                                        Ver Detalle
+                                    </Link>
+                                </div>
                             </div>
                         ))}
                     </div>
