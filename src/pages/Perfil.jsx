@@ -28,7 +28,7 @@ const comprimirImagen = (archivo, anchoMax = 400, altoMax = 400, calidad = 0.8) 
                 // Convertir a blob WebP
                 canvas.toBlob((blob) => {
                     if (!blob) return reject(new Error('Error al procesar la imagen en el canvas'));
-                    resolve(new File([blob], `avatar_${Date.now()}.webp`, { type: 'image/webp' }));
+                    resolve(new File([blob], `avatar.webp`, { type: 'image/webp' }));
                 }, 'image/webp', calidad);
             };
             img.onerror = (err) => reject(err);
@@ -80,45 +80,57 @@ export default function Perfil() {
             setSubiendoAvatar(true);
 
             const fileOriginal = e.target.files[0];
-            
-            // Limitamos que sea de tipo imagen
+
             if (!fileOriginal.type.startsWith('image/')) {
-                alert("Por favor selecciona un archivo de imagen válido (JPG, PNG, etc).");
+                alert("Por favor selecciona un archivo de imagen válido (JPG, PNG, WebP).");
                 setSubiendoAvatar(false);
                 return;
             }
 
-            // 1. Comprimir imagen en el frontend
+            // 1. Comprimir y recortar a 400x400 WebP
             const fileOptimizado = await comprimirImagen(fileOriginal, 400, 400, 0.85);
-            
-            // 2. Definir ruta en Supabase Storage (aseguramos .webp por la compresión)
-            const filePath = `${user.id}/avatar_${Date.now()}.webp`;
 
-            // 3. Subir la imagen comprimida al bucket 'avatares'
+            // 2. LIMPIEZA AUTOMÁTICA: Buscar si el usuario ya tiene fotos viejas y borrarlas todas
+            const { data: archivosExistentes } = await supabase.storage
+                .from('avatares')
+                .list(user.id);
+
+            if (archivosExistentes && archivosExistentes.length > 0) {
+                const rutasABorrar = archivosExistentes.map(f => `${user.id}/${f.name}`);
+                await supabase.storage.from('avatares').remove(rutasABorrar);
+            }
+
+            // 3. Ruta fija para la nueva foto
+            const filePath = `${user.id}/avatar.webp`;
+
+            // 4. Subir la imagen optimizada
             const { error: uploadError } = await supabase.storage
                 .from('avatares')
-                .upload(filePath, fileOptimizado, { upsert: true, contentType: 'image/webp' });
+                .upload(filePath, fileOptimizado, {
+                    upsert: true,
+                    contentType: 'image/webp'
+                });
 
             if (uploadError) throw uploadError;
 
-            // 4. Obtener la URL pública
+            // 5. Obtener URL pública con parámetro de tiempo para saltar la caché
             const { data: urlData } = supabase.storage
                 .from('avatares')
                 .getPublicUrl(filePath);
 
-            const publicUrl = urlData.publicUrl;
+            const publicUrlConCacheBuster = `${urlData.publicUrl}?t=${Date.now()}`;
 
-            // 5. Actualizar la base de datos
+            // 6. Actualizar registro en la base de datos
             const { error: updateError } = await supabase
                 .from('usuarios')
-                .update({ avatar_url: publicUrl })
+                .update({ avatar_url: publicUrlConCacheBuster })
                 .eq('id', user.id);
 
             if (updateError) throw updateError;
 
-            setAvatarUrl(publicUrl);
-            alert('¡Foto de perfil actualizada y optimizada con éxito!');
-            
+            setAvatarUrl(publicUrlConCacheBuster);
+            alert('¡Foto de perfil actualizada con éxito!');
+
         } catch (error) {
             alert('Error al procesar o subir la imagen: ' + error.message);
         } finally {

@@ -6,8 +6,7 @@ import { Link } from 'react-router-dom';
 import NotificacionesBell from "../components/NotificacionesBell";
 import AdminPanel from "../components/AdminPanel";
 
-const OPCIONES_CARRERAS = [
-  "Multidisciplinario (Todas las carreras)",
+const LISTA_CARRERAS = [
   "Ingeniería en Sistemas Computacionales",
   "Ingeniería en Gestión Empresarial",
   "Ingeniería Industrial",
@@ -44,7 +43,7 @@ export default function Dashboard() {
   const [nuevaDelimitacion, setNuevaDelimitacion] = useState('');
   const [cuposRequeridos, setCuposRequeridos] = useState(1);
   const [nuevaModalidad, setNuevaModalidad] = useState('Presencial');
-  const [nuevaCarrera, setNuevaCarrera] = useState(OPCIONES_CARRERAS[0]);
+  const [nuevasCarreras, setNuevasCarreras] = useState([LISTA_CARRERAS[0]]); // Array para selección múltiple
   const [protocoloFile, setProtocoloFile] = useState(null);
   const [protocoloUrl, setProtocoloUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -57,10 +56,10 @@ export default function Dashboard() {
   const [editObjetivoGeneral, setEditObjetivoGeneral] = useState('');
   const [editObjetivosEspecificos, setEditObjetivosEspecificos] = useState('');
   const [editDelimitacion, setEditDelimitacion] = useState('');
-  const [editEstado, setEditEstado] = useState('');
+  const [editEstado, setEditEstado] = useState('Activo');
   const [editCupos, setEditCupos] = useState(1);
   const [editModalidad, setEditModalidad] = useState('Presencial');
-  const [editCarrera, setEditCarrera] = useState('');
+  const [editCarreras, setEditCarreras] = useState([]); // Array para edición múltiple
   const [editProtocoloFile, setEditProtocoloFile] = useState(null);
   const [editProtocoloUrl, setEditProtocoloUrl] = useState('');
 
@@ -102,8 +101,25 @@ export default function Dashboard() {
     fetchDatos();
   }, [refresh, user]);
 
+  // Manejadores para alternar carreras seleccionadas
+  const handleToggleCarreraCrear = (carrera) => {
+    setNuevasCarreras(prev =>
+      prev.includes(carrera) ? prev.filter(c => c !== carrera) : [...prev, carrera]
+    );
+  };
+
+  const handleToggleCarreraEditar = (carrera) => {
+    setEditCarreras(prev =>
+      prev.includes(carrera) ? prev.filter(c => c !== carrera) : [...prev, carrera]
+    );
+  };
+
   const handleCrearProyecto = async (e) => {
     e.preventDefault();
+    if (nuevasCarreras.length === 0) {
+      alert("Por favor selecciona al menos una carrera para el proyecto.");
+      return;
+    }
     setIsSubmitting(true);
     let finalUrl = '';
 
@@ -118,21 +134,44 @@ export default function Dashboard() {
       finalUrl = protocoloUrl;
     }
 
+    // Si seleccionó todas, se marca como Multidisciplinario, de lo contrario se unen con comas
+    const carreraFinal = nuevasCarreras.length === LISTA_CARRERAS.length
+      ? "Multidisciplinario (Todas las carreras)"
+      : nuevasCarreras.join(', ');
+
     const { error } = await supabase.from('proyectos').insert([{
-      titulo: nuevoTitulo, planteamiento_problema: nuevoPlanteamiento, objetivo_general: nuevoObjetivoGeneral,
-      objetivos_especificos: nuevoObjetivosEspecificos, delimitacion: nuevaDelimitacion,
-      estado: 'En preparación', investigador_id: user.id, cupos_requeridos: cuposRequeridos,
-      documento_protocolo_url: finalUrl, modalidad: nuevaModalidad, carrera: nuevaCarrera,
-      descripcion: nuevoPlanteamiento, objetivo: nuevoObjetivoGeneral, pre_requisitos: nuevoObjetivosEspecificos, requisitos: nuevaDelimitacion
+      titulo: nuevoTitulo,
+      planteamiento_problema: nuevoPlanteamiento,
+      objetivo_general: nuevoObjetivoGeneral,
+      objetivos_especificos: nuevoObjetivosEspecificos,
+      delimitacion: nuevaDelimitacion,
+      estado: 'Activo',
+      investigador_id: user.id,
+      cupos_requeridos: cuposRequeridos,
+      documento_protocolo_url: finalUrl,
+      modalidad: nuevaModalidad,
+      carrera: carreraFinal,
+      descripcion: nuevoPlanteamiento,
+      objetivo: nuevoObjetivoGeneral,
+      pre_requisitos: nuevoObjetivosEspecificos,
+      requisitos: nuevaDelimitacion
     }]);
 
-    if (error) { alert(`Error al crear: ${error.message}`); console.error(error); }
-    else {
+    if (error) {
+      alert(`Error al crear: ${error.message}`);
+      console.error(error);
+    } else {
       setIsModalOpen(false);
-      setNuevoTitulo(''); setNuevoPlanteamiento(''); setNuevoObjetivoGeneral('');
-      setNuevoObjetivosEspecificos(''); setNuevaDelimitacion(''); setCuposRequeridos(1);
-      setNuevaModalidad('Presencial'); setNuevaCarrera(OPCIONES_CARRERAS[0]);
-      setProtocoloFile(null); setProtocoloUrl('');
+      setNuevoTitulo('');
+      setNuevoPlanteamiento('');
+      setNuevoObjetivoGeneral('');
+      setNuevoObjetivosEspecificos('');
+      setNuevaDelimitacion('');
+      setCuposRequeridos(1);
+      setNuevaModalidad('Presencial');
+      setNuevasCarreras([LISTA_CARRERAS[0]]);
+      setProtocoloFile(null);
+      setProtocoloUrl('');
       setRefresh(prev => prev + 1);
     }
     setIsSubmitting(false);
@@ -152,10 +191,20 @@ export default function Dashboard() {
     setEditObjetivoGeneral(proyecto.objetivo_general || proyecto.objetivo || '');
     setEditObjetivosEspecificos(proyecto.objetivos_especificos || proyecto.pre_requisitos || '');
     setEditDelimitacion(proyecto.delimitacion || proyecto.requisitos || '');
-    setEditEstado(proyecto.estado === 'Borrador' ? 'En preparación' : (proyecto.estado || 'En preparación'));
+    setEditEstado(proyecto.estado === 'Borrador' ? 'Activo' : (proyecto.estado || 'Activo'));
     setEditCupos(proyecto.cupos_requeridos || 1);
     setEditModalidad(proyecto.modalidad || 'Presencial');
-    setEditCarrera(proyecto.carrera || OPCIONES_CARRERAS[0]);
+
+    // Desglosar las carreras guardadas
+    if (proyecto.carrera?.includes('Multidisciplinario')) {
+      setEditCarreras([...LISTA_CARRERAS]);
+    } else if (proyecto.carrera) {
+      const seleccionadas = proyecto.carrera.split(',').map(c => c.trim());
+      setEditCarreras(seleccionadas);
+    } else {
+      setEditCarreras([]);
+    }
+
     setEditProtocoloUrl(proyecto.documento_protocolo_url || '');
     setEditProtocoloFile(null);
     setIsEditModalOpen(true);
@@ -163,6 +212,10 @@ export default function Dashboard() {
 
   const handleActualizarProyecto = async (e) => {
     e.preventDefault();
+    if (editCarreras.length === 0) {
+      alert("Por favor selecciona al menos una carrera para el proyecto.");
+      return;
+    }
     setIsSubmitting(true);
     let finalUrl = editProtocoloUrl;
 
@@ -175,11 +228,25 @@ export default function Dashboard() {
       finalUrl = urlData.publicUrl;
     }
 
+    const carreraFinal = editCarreras.length === LISTA_CARRERAS.length
+      ? "Multidisciplinario (Todas las carreras)"
+      : editCarreras.join(', ');
+
     const { error } = await supabase.from('proyectos').update({
-      titulo: editTitulo, planteamiento_problema: editPlanteamiento, objetivo_general: editObjetivoGeneral,
-      objetivos_especificos: editObjetivosEspecificos, delimitacion: editDelimitacion, estado: editEstado, cupos_requeridos: editCupos,
-      documento_protocolo_url: finalUrl, modalidad: editModalidad, carrera: editCarrera,
-      descripcion: editPlanteamiento, objetivo: editObjetivoGeneral, pre_requisitos: editObjetivosEspecificos, requisitos: editDelimitacion
+      titulo: editTitulo,
+      planteamiento_problema: editPlanteamiento,
+      objetivo_general: editObjetivoGeneral,
+      objetivos_especificos: editObjetivosEspecificos,
+      delimitacion: editDelimitacion,
+      estado: editEstado,
+      cupos_requeridos: editCupos,
+      documento_protocolo_url: finalUrl,
+      modalidad: editModalidad,
+      carrera: carreraFinal,
+      descripcion: editPlanteamiento,
+      objetivo: editObjetivoGeneral,
+      pre_requisitos: editObjetivosEspecificos,
+      requisitos: editDelimitacion
     }).eq('id', proyectoEditando);
 
     if (error) alert("Error al guardar los cambios.");
@@ -188,8 +255,14 @@ export default function Dashboard() {
   };
 
   const abrirModalPostulaciones = async (proyecto) => {
-    setProyectoActualTit(proyecto.titulo); setIsPostulacionesModalOpen(true); setLoadingPostulaciones(true);
-    const { data, error } = await supabase.from('postulaciones').select('*, estudiante:usuarios!id_estudiante(nombre_completo, correo_institucional)').eq('id_proyecto', proyecto.id).order('fecha_postulacion', { ascending: false });
+    setProyectoActualTit(proyecto.titulo);
+    setIsPostulacionesModalOpen(true);
+    setLoadingPostulaciones(true);
+    const { data, error } = await supabase
+      .from('postulaciones')
+      .select('*, estudiante:usuarios!id_estudiante(nombre_completo, correo_institucional)')
+      .eq('id_proyecto', proyecto.id)
+      .order('fecha_postulacion', { ascending: false });
     if (error) console.error("Error cargando postulaciones:", error);
     else setPostulaciones(data);
     setLoadingPostulaciones(false);
@@ -198,10 +271,18 @@ export default function Dashboard() {
   const cambiarEstadoPostulacion = async (postulacionId, nuevoEstado) => {
     const post = postulaciones.find(p => p.id === postulacionId);
     const { error } = await supabase.from('postulaciones').update({ estado: nuevoEstado }).eq('id', postulacionId);
-    if (error) { alert("Error al actualizar el estado."); } else {
+    if (error) {
+      alert("Error al actualizar el estado.");
+    } else {
       setPostulaciones(postulaciones.map(p => p.id === postulacionId ? { ...p, estado: nuevoEstado } : p));
       setRefresh(prev => prev + 1);
-      if (post?.id_estudiante) { await supabase.from('notificaciones').insert([{ usuario_id: post.id_estudiante, tipo: nuevoEstado.toLowerCase(), mensaje: `Tu postulación al proyecto "${proyectoActualTit}" ha sido ${nuevoEstado.toLowerCase()}.` }]); }
+      if (post?.id_estudiante) {
+        await supabase.from('notificaciones').insert([{
+          usuario_id: post.id_estudiante,
+          tipo: nuevoEstado.toLowerCase(),
+          mensaje: `Tu postulación al proyecto "${proyectoActualTit}" ha sido ${nuevoEstado.toLowerCase()}.`
+        }]);
+      }
     }
   };
 
@@ -209,18 +290,27 @@ export default function Dashboard() {
   const proyectosActivos = proyectos.filter(p => p.estado?.toLowerCase() === 'activo').length;
   const proyectosFinalizados = proyectos.filter(p => p.estado?.toLowerCase() === 'finalizado').length;
   const proyectosPreparacion = proyectos.filter(p => !p.estado || p.estado?.toLowerCase() === 'en preparación' || p.estado?.toLowerCase() === 'borrador').length;
-  const datosGraficaEstado = [{ name: 'Activos', cantidad: proyectosActivos, color: '#10b981' }, { name: 'Finalizados', cantidad: proyectosFinalizados, color: '#3b82f6' }, { name: 'En preparación', cantidad: proyectosPreparacion, color: '#64748b' }];
+  const datosGraficaEstado = [
+    { name: 'Activos', cantidad: proyectosActivos, color: '#10b981' },
+    { name: 'Finalizados', cantidad: proyectosFinalizados, color: '#3b82f6' },
+    { name: 'En preparación', cantidad: proyectosPreparacion, color: '#64748b' }
+  ];
 
   // Proyectos creados por el docente logueado
   const misProyectosDocente = proyectos.filter(p => p.investigador_id === user?.id);
 
-  // Lógica de filtrado en catálogo general
+  // Lógica de filtrado en catálogo general (soporta proyectos con múltiples carreras)
   const proyectosFiltrados = proyectos.filter((proy) => {
     const textoBuscar = busqueda.toLowerCase();
-    const coincideTexto = proy.titulo?.toLowerCase().includes(textoBuscar) || (proy.planteamiento_problema || proy.descripcion)?.toLowerCase().includes(textoBuscar) || proy.investigador?.nombre_completo?.toLowerCase().includes(textoBuscar);
+    const coincideTexto = proy.titulo?.toLowerCase().includes(textoBuscar) ||
+      (proy.planteamiento_problema || proy.descripcion)?.toLowerCase().includes(textoBuscar) ||
+      proy.investigador?.nombre_completo?.toLowerCase().includes(textoBuscar);
+
     const coincideEstado = filtroEstado === 'Todos' || proy.estado?.toLowerCase() === filtroEstado.toLowerCase();
     const coincideModalidad = filtroModalidad === 'Todas' || proy.modalidad === filtroModalidad;
-    const coincideCarrera = filtroCarrera === 'Todas' || proy.carrera === filtroCarrera;
+    const coincideCarrera = filtroCarrera === 'Todas' ||
+      proy.carrera?.includes(filtroCarrera) ||
+      proy.carrera?.includes('Multidisciplinario');
 
     return coincideTexto && coincideEstado && coincideModalidad && coincideCarrera;
   });
@@ -244,14 +334,12 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-3">
 
-          {/* Enlace al perfil haciendo clic en el nombre y foto (pantallas grandes) */}
           {/* Tarjeta de Perfil Interactiva en Navbar */}
           <Link
             to="/perfil"
             className="hidden md:flex items-center gap-3 bg-white hover:bg-blue-50/80 border border-slate-200 hover:border-blue-300 py-1.5 pl-2 pr-3.5 rounded-full transition-all duration-200 shadow-sm hover:shadow group no-underline"
             title="Ir a mi perfil"
           >
-            {/* Foto Circular o Iniciales con Contraste */}
             {user?.avatar_url ? (
               <img
                 src={user.avatar_url}
@@ -266,7 +354,6 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* Nombre y Rol alineados */}
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-800 group-hover:text-blue-700 transition-colors leading-none">
                 {user?.nombre_completo}
@@ -276,7 +363,6 @@ export default function Dashboard() {
               </span>
             </div>
 
-            {/* Flecha indicadora sutil */}
             <svg
               className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all"
               fill="none"
@@ -289,7 +375,6 @@ export default function Dashboard() {
 
           <NotificacionesBell />
 
-          {/* Botones para móviles */}
           <Link to="/perfil" className="sm:hidden text-xs bg-blue-50 text-blue-700 px-3 py-2 rounded-lg font-semibold hover:bg-blue-100 transition-colors">
             Perfil
           </Link>
@@ -306,7 +391,10 @@ export default function Dashboard() {
       <main className="p-6 md:p-8 max-w-7xl mx-auto relative z-10">
 
         <div className="flex justify-between items-center mb-8">
-          <div><h2 className="text-2xl font-bold text-slate-800">Dashboard Analítico</h2><p className="text-slate-500 text-sm mt-1">Métricas operativas del periodo 2026</p></div>
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800">Dashboard Analítico</h2>
+            <p className="text-slate-500 text-sm mt-1">Métricas operativas del periodo 2026</p>
+          </div>
           {(user?.rol === 'Investigador' || user?.rol === 'Administrador') && (
             <button onClick={() => setIsModalOpen(true)} className="bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 font-semibold transition-colors shadow-sm flex items-center gap-2">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg> Nuevo Proyecto
@@ -359,40 +447,56 @@ export default function Dashboard() {
                   const porcentaje = Math.min(100, Math.round((aceptados / cuposTotales) * 100));
 
                   return (
-                    <div key={proyecto.id} className="bg-white p-6 rounded-xl shadow-sm border-2 border-blue-200 hover:shadow-md transition-all flex flex-col h-full relative">
+                    <div key={proyecto.id} className="bg-white p-6 rounded-xl shadow-sm border-2 border-blue-200 hover:shadow-md transition-all flex flex-col items-center text-center h-full relative">
 
-                      <div className="flex justify-between items-start mb-2 gap-2">
-                        <h4 className="font-bold text-lg text-slate-800 leading-tight">{proyecto.titulo}</h4>
+                      <div className="flex flex-col items-center mb-2 gap-2 w-full">
                         <span className={`text-xs px-2.5 py-1 rounded-full font-medium border flex-shrink-0 ${proyecto.estado?.toLowerCase() === 'activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                          proyecto.estado?.toLowerCase() === 'finalizado' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                            'bg-slate-100 text-slate-700 border-slate-200'
+                            proyecto.estado?.toLowerCase() === 'finalizado' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                              'bg-slate-100 text-slate-700 border-slate-200'
                           }`}>
-                          {proyecto.estado === 'Borrador' ? 'En preparación' : (proyecto.estado || 'En preparación')}
+                          {proyecto.estado || 'Activo'}
                         </span>
-                      </div>
-
-                      {/* ETIQUETAS MÁS GRANDES Y CENTRADAS EN LÍNEAS SEPARADAS */}
-                      <div className="flex flex-col items-center justify-center gap-2 mt-3 mb-2">
-                        <span className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-1 rounded-md flex items-center justify-center gap-1.5 font-bold shadow-sm w-fit mx-auto text-center">
-                          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
-                          {proyecto.carrera || 'Multidisciplinario'}
-                        </span>
-                        <span className="text-xs bg-purple-50 text-purple-700 border border-purple-200 px-3 py-1 rounded-md flex items-center justify-center gap-1.5 font-bold shadow-sm w-fit mx-auto text-center">
-                          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
-                          {proyecto.modalidad || 'Presencial'}
-                        </span>
+                        <h4 className="font-extrabold text-lg text-slate-800 leading-tight">{proyecto.titulo}</h4>
                       </div>
 
                       {/* LÍNEA DIVISORIA */}
-                      <hr className="border-slate-100 my-4" />
+                      <hr className="border-slate-100 my-3 w-full" />
 
-                      <p className="text-slate-600 text-sm mb-4 line-clamp-2 flex-grow">
+                      {/* INFORMACIÓN EN TEXTO CON JERARQUÍA DE COLOR */}
+                      <div className="flex flex-col items-center justify-center gap-1.5 my-1 text-sm w-full">
+                        <p className="leading-snug">
+                          <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md mr-1.5 text-xs uppercase tracking-wide">
+                            Carrera:
+                          </span>
+                          <span className="font-semibold text-slate-800">{proyecto.carrera || 'Multidisciplinario'}</span>
+                        </p>
+                        <p className="leading-snug">
+                          <span className="font-bold text-purple-700 bg-purple-50 border border-purple-100 px-2 py-0.5 rounded-md mr-1.5 text-xs uppercase tracking-wide">
+                            Modalidad:
+                          </span>
+                          <span className="font-semibold text-slate-800">{proyecto.modalidad || 'Presencial'}</span>
+                        </p>
+                      </div>
+
+                      {/* LÍNEA DIVISORIA */}
+                      <hr className="border-slate-100 my-3 w-full" />
+
+                      <p className="text-slate-600 text-sm mb-4 line-clamp-3 flex-grow">
                         {proyecto.planteamiento_problema || proyecto.descripcion}
                       </p>
 
-                      <div className="mb-4 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                      <div className="flex flex-col items-center text-sm mb-4 w-full">
+                        <p>
+                          <span className="font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-md mr-1.5 text-xs uppercase tracking-wide">
+                            Investigador:
+                          </span>
+                          <span className="font-bold text-slate-800 uppercase">{proyecto.investigador?.nombre_completo || 'No asignado'}</span>
+                        </p>
+                      </div>
+
+                      <div className="w-full bg-slate-50 p-2.5 rounded-lg border border-slate-100 mb-4 mt-auto">
                         <div className="flex justify-between items-center text-xs mb-1.5">
-                          <span className="font-medium text-slate-600">Cupos:</span>
+                          <span className="font-medium text-slate-600">Cupos de Residentes:</span>
                           <span className={`font-bold ${estaLleno ? 'text-red-600' : 'text-blue-600'}`}>
                             {aceptados} / {cuposTotales} {estaLleno ? '(Lleno)' : 'ocupados'}
                           </span>
@@ -405,7 +509,7 @@ export default function Dashboard() {
                         </div>
                       </div>
 
-                      <div className="flex justify-between items-center border-t border-slate-100 pt-3 mt-auto gap-2">
+                      <div className="flex justify-center items-center border-t border-slate-100 pt-3 mt-auto gap-2 w-full">
                         <button
                           onClick={() => abrirModalPostulaciones(proyecto)}
                           className="relative text-xs font-bold bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5"
@@ -418,7 +522,7 @@ export default function Dashboard() {
                           )}
                         </button>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center justify-center gap-2">
                           <Link to={`/proyecto/${proyecto.id}`} className="text-xs font-semibold text-slate-600 hover:text-blue-600 transition-colors">
                             Espacio
                           </Link>
@@ -454,7 +558,7 @@ export default function Dashboard() {
                     </div>
                     <p className="text-sm text-slate-500 mb-6 flex-grow line-clamp-2">{post.proyecto?.planteamiento_problema || post.proyecto?.descripcion}</p>
                     <div className="flex justify-between items-center border-t border-slate-100 pt-4 mt-auto">
-                      <div className="text-xs text-slate-500">Profesor: <span className="font-semibold text-slate-700 uppercase">{post.proyecto?.investigador?.nombre_completo}</span></div>
+                      <div className="text-xs text-slate-500">Investigador: <span className="font-semibold text-slate-700 uppercase">{post.proyecto?.investigador?.nombre_completo}</span></div>
                       <Link to={`/proyecto/${post.proyecto?.id}`} className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors bg-blue-50 px-3 py-1.5 rounded-md">Ver Detalles</Link>
                     </div>
                   </div>
@@ -491,7 +595,7 @@ export default function Dashboard() {
 
             <select value={filtroCarrera} onChange={(e) => setFiltroCarrera(e.target.value)} className="bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer max-w-[200px] truncate">
               <option value="Todas">Carrera: Todas</option>
-              {OPCIONES_CARRERAS.map(c => <option key={c} value={c}>{c}</option>)}
+              {LISTA_CARRERAS.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
 
             {(busqueda || filtroEstado !== 'Todos' || filtroModalidad !== 'Todas' || filtroCarrera !== 'Todas') && (
@@ -519,45 +623,75 @@ export default function Dashboard() {
               const porcentaje = Math.min(100, Math.round((aceptados / cuposTotales) * 100));
 
               return (
-                <div key={proyecto.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all flex flex-col h-full">
+                <div key={proyecto.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all flex flex-col items-center text-center h-full">
 
-                  <div className="flex justify-between items-start mb-2 gap-2">
-                    <h3 className="font-bold text-lg text-slate-800 leading-tight">{proyecto.titulo}</h3>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      {estaLleno && (<span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-red-100 text-red-700 border border-red-200">Lleno</span>)}
-                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium border ${proyecto.estado?.toLowerCase() === 'activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : proyecto.estado?.toLowerCase() === 'finalizado' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>{proyecto.estado === 'Borrador' ? 'En preparación' : (proyecto.estado || 'En preparación')}</span>
-                    </div>
-                  </div>
-
-                  {/* ETIQUETAS CENTRADAS EN LÍNEAS SEPARADAS */}
-                  <div className="flex flex-col items-center justify-center gap-2 mt-3 mb-2">
-                    <span className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-1 rounded-md flex items-center justify-center gap-1.5 font-bold shadow-sm w-fit mx-auto text-center">
-                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
-                      {proyecto.carrera || 'Multidisciplinario'}
+                  <div className="flex flex-col items-center mb-2 gap-2 w-full">
+                    <span className={`text-xs px-2.5 py-1 rounded-full font-medium border flex-shrink-0 ${proyecto.estado?.toLowerCase() === 'activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                        proyecto.estado?.toLowerCase() === 'finalizado' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                          'bg-slate-100 text-slate-700 border-slate-200'
+                      }`}>
+                      {proyecto.estado || 'Activo'}
                     </span>
-                    <span className="text-xs bg-purple-50 text-purple-700 border border-purple-200 px-3 py-1 rounded-md flex items-center justify-center gap-1.5 font-bold shadow-sm w-fit mx-auto text-center">
-                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
-                      {proyecto.modalidad || 'Presencial'}
-                    </span>
+                    <h3 className="font-extrabold text-lg text-slate-800 leading-tight">{proyecto.titulo}</h3>
+                    {estaLleno && (<span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-red-100 text-red-700 border border-red-200">Lleno</span>)}
                   </div>
 
                   {/* LÍNEA DIVISORIA */}
-                  <hr className="border-slate-100 my-4" />
+                  <hr className="border-slate-100 my-3 w-full" />
 
-                  <p className="text-slate-600 text-sm mb-4 line-clamp-3 flex-grow">{proyecto.planteamiento_problema || proyecto.descripcion}</p>
-
-                  <div className="mb-4 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                    <div className="flex justify-between items-center text-xs mb-1.5"><span className="font-medium text-slate-600">Cupos de Residentes:</span><span className={`font-bold ${estaLleno ? 'text-red-600' : 'text-blue-600'}`}>{aceptados} / {cuposTotales} {estaLleno ? '(Sin cupo)' : 'ocupados'}</span></div>
-                    <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden"><div className={`h-full transition-all duration-300 ${estaLleno ? 'bg-red-500' : 'bg-blue-600'}`} style={{ width: `${porcentaje}%` }} /></div>
+                  {/* INFORMACIÓN EN TEXTO CON JERARQUÍA DE COLOR */}
+                  <div className="flex flex-col items-center justify-center gap-1.5 my-1 text-sm w-full">
+                    <p className="leading-snug">
+                      <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md mr-1.5 text-xs uppercase tracking-wide">
+                        Carrera:
+                      </span>
+                      <span className="font-semibold text-slate-800">{proyecto.carrera || 'Multidisciplinario'}</span>
+                    </p>
+                    <p className="leading-snug">
+                      <span className="font-bold text-purple-700 bg-purple-50 border border-purple-100 px-2 py-0.5 rounded-md mr-1.5 text-xs uppercase tracking-wide">
+                        Modalidad:
+                      </span>
+                      <span className="font-semibold text-slate-800">{proyecto.modalidad || 'Presencial'}</span>
+                    </p>
                   </div>
-                  <div className="flex justify-between items-end border-t border-slate-100 pt-4 mt-auto">
-                    <div className="text-xs text-slate-500">Investigador: <span className="font-medium text-slate-700 block uppercase">{proyecto.investigador?.nombre_completo || 'No asignado'}</span></div>
-                    <div className="flex gap-2.5 items-center flex-wrap justify-end">
-                      <Link to={`/proyecto/${proyecto.id}`} className="text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors">Ver Detalle</Link>
-                      {(user?.id === proyecto.investigador_id || user?.rol === 'Administrador') && (
-                        <><button onClick={() => abrirModalPostulaciones(proyecto)} className="text-sm font-semibold text-purple-600 hover:text-purple-800 transition-colors">Solicitudes</button><button onClick={() => abrirModalEdicion(proyecto)} className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors">Editar</button><button onClick={() => handleEliminar(proyecto.id)} className="text-sm font-semibold text-red-500 hover:text-red-700 transition-colors">Borrar</button></>
-                      )}
+
+                  {/* LÍNEA DIVISORIA */}
+                  <hr className="border-slate-100 my-3 w-full" />
+
+                  <p className="text-slate-600 text-sm mb-4 line-clamp-3 flex-grow">
+                    {proyecto.planteamiento_problema || proyecto.descripcion}
+                  </p>
+
+                  <div className="flex flex-col items-center text-sm mb-4 w-full">
+                    <p>
+                      <span className="font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-md mr-1.5 text-xs uppercase tracking-wide">
+                        Investigador:
+                      </span>
+                      <span className="font-bold text-slate-800 uppercase">{proyecto.investigador?.nombre_completo || 'No asignado'}</span>
+                    </p>
+                  </div>
+
+                  <div className="w-full bg-slate-50 p-2.5 rounded-lg border border-slate-100 mb-4 mt-auto">
+                    <div className="flex justify-between items-center text-xs mb-1.5">
+                      <span className="font-medium text-slate-600">Cupos de Residentes:</span>
+                      <span className={`font-bold ${estaLleno ? 'text-red-600' : 'text-blue-600'}`}>
+                        {aceptados} / {cuposTotales} {estaLleno ? '(Sin cupo)' : 'ocupados'}
+                      </span>
                     </div>
+                    <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                      <div className={`h-full transition-all duration-300 ${estaLleno ? 'bg-red-500' : 'bg-blue-600'}`} style={{ width: `${porcentaje}%` }} />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-center items-center border-t border-slate-100 pt-4 w-full gap-2">
+                    <Link to={`/proyecto/${proyecto.id}`} className="text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors">Ver Detalle</Link>
+                    {(user?.id === proyecto.investigador_id || user?.rol === 'Administrador') && (
+                      <>
+                        <button onClick={() => abrirModalPostulaciones(proyecto)} className="text-sm font-semibold text-purple-600 hover:text-purple-800 transition-colors">Solicitudes</button>
+                        <button onClick={() => abrirModalEdicion(proyecto)} className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors">Editar</button>
+                        <button onClick={() => handleEliminar(proyecto.id)} className="text-sm font-semibold text-red-500 hover:text-red-700 transition-colors">Borrar</button>
+                      </>
+                    )}
                   </div>
                 </div>
               );
@@ -572,24 +706,45 @@ export default function Dashboard() {
           {isPostulacionesModalOpen && (
             <div className="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="text-lg font-bold text-slate-800 truncate pr-4">Solicitudes: {proyectoActualTit}</h3><button onClick={() => setIsPostulacionesModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold text-xl flex-shrink-0">✕</button></div>
+                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                  <h3 className="text-lg font-bold text-slate-800 truncate pr-4">Solicitudes: {proyectoActualTit}</h3>
+                  <button onClick={() => setIsPostulacionesModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold text-xl flex-shrink-0">✕</button>
+                </div>
                 <div className="p-6 overflow-y-auto flex-1 bg-white">
-                  {loadingPostulaciones ? (<p className="text-center text-slate-500 py-4">Cargando solicitudes...</p>) : postulaciones.length === 0 ? (<div className="text-center py-8"><p className="text-4xl mb-2">📬</p><p className="text-slate-500 font-medium">Aún no hay alumnos postulados a este proyecto.</p></div>) : (
+                  {loadingPostulaciones ? (
+                    <p className="text-center text-slate-500 py-4">Cargando solicitudes...</p>
+                  ) : postulaciones.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-4xl mb-2">📬</p>
+                      <p className="text-slate-500 font-medium">Aún no hay alumnos postulados a este proyecto.</p>
+                    </div>
+                  ) : (
                     <div className="space-y-4">
                       {postulaciones.map(postulacion => (
                         <div key={postulacion.id} className="border border-slate-200 rounded-lg p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50 hover:bg-slate-100 transition-colors">
                           <div className="flex-1">
                             <p className="font-bold text-slate-800 uppercase text-lg">{postulacion.estudiante?.nombre_completo || 'Alumno Desconocido'}</p>
                             <p className="text-sm text-blue-600 font-medium mb-3">{postulacion.estudiante?.correo_institucional}</p>
-                            <div className="bg-white p-3 rounded border border-slate-200 mb-3"><p className="text-xs font-bold text-slate-500 uppercase mb-1">Carta de Motivos:</p><p className="text-sm text-slate-700 italic">"{postulacion.mensaje_estudiante || 'Sin mensaje'}"</p></div>
+                            <div className="bg-white p-3 rounded border border-slate-200 mb-3">
+                              <p className="text-xs font-bold text-slate-500 uppercase mb-1">Carta de Motivos:</p>
+                              <p className="text-sm text-slate-700 italic">"{postulacion.mensaje_estudiante || 'Sin mensaje'}"</p>
+                            </div>
                             <div className="flex items-center gap-4 text-sm">
                               <p className="text-slate-500">Estado: <span className={`font-bold ${postulacion.estado === 'Aceptado' ? 'text-emerald-600' : postulacion.estado === 'Rechazado' ? 'text-red-600' : 'text-amber-600'}`}>{postulacion.estado}</span></p>
-                              {postulacion.documento_kardex_url && (<a href={postulacion.documento_kardex_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg> Ver Kardex</a>)}
+                              {postulacion.documento_kardex_url && (
+                                <a href={postulacion.documento_kardex_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg> Ver Kardex
+                                </a>
+                              )}
                             </div>
                           </div>
                           <div className="flex md:flex-col gap-2 w-full md:w-auto mt-2 md:mt-0">
-                            {postulacion.estado !== 'Aceptado' && (<button onClick={() => cambiarEstadoPostulacion(postulacion.id, 'Aceptado')} className="flex-1 md:flex-none bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-6 py-2 rounded-md text-sm font-bold transition-colors shadow-sm">Aceptar</button>)}
-                            {postulacion.estado !== 'Rechazado' && (<button onClick={() => cambiarEstadoPostulacion(postulacion.id, 'Rechazado')} className="flex-1 md:flex-none bg-red-100 text-red-700 hover:bg-red-200 px-6 py-2 rounded-md text-sm font-bold transition-colors shadow-sm">Rechazar</button>)}
+                            {postulacion.estado !== 'Aceptado' && (
+                              <button onClick={() => cambiarEstadoPostulacion(postulacion.id, 'Aceptado')} className="flex-1 md:flex-none bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-6 py-2 rounded-md text-sm font-bold transition-colors shadow-sm">Aceptar</button>
+                            )}
+                            {postulacion.estado !== 'Rechazado' && (
+                              <button onClick={() => cambiarEstadoPostulacion(postulacion.id, 'Rechazado')} className="flex-1 md:flex-none bg-red-100 text-red-700 hover:bg-red-200 px-6 py-2 rounded-md text-sm font-bold transition-colors shadow-sm">Rechazar</button>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -604,15 +759,32 @@ export default function Dashboard() {
           {isModalOpen && (
             <div className="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
-                <div className="px-6 py-4 border-b border-slate-100 flex-shrink-0"><h3 className="text-lg font-bold text-slate-800">Crear Nuevo Proyecto</h3></div>
+                <div className="px-6 py-4 border-b border-slate-100 flex-shrink-0">
+                  <h3 className="text-lg font-bold text-slate-800">Crear Nuevo Proyecto</h3>
+                </div>
                 <form onSubmit={handleCrearProyecto} className="p-6 space-y-4 overflow-y-auto">
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Título</label><input type="text" required value={nuevoTitulo} onChange={(e) => setNuevoTitulo(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" /></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Planteamiento del problema</label><textarea required rows="3" value={nuevoPlanteamiento} onChange={(e) => setNuevoPlanteamiento(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" /></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Objetivo general</label><textarea required rows="2" value={nuevoObjetivoGeneral} onChange={(e) => setNuevoObjetivoGeneral(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" /></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Objetivos Específicos</label><textarea required rows="2" value={nuevoObjetivosEspecificos} onChange={(e) => setNuevoObjetivosEspecificos(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" /></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Delimitación</label><textarea required rows="2" value={nuevaDelimitacion} onChange={(e) => setNuevaDelimitacion(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" /></div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Título</label>
+                    <input type="text" required value={nuevoTitulo} onChange={(e) => setNuevoTitulo(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Planteamiento del problema</label>
+                    <textarea required rows="3" value={nuevoPlanteamiento} onChange={(e) => setNuevoPlanteamiento(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Objetivo general</label>
+                    <textarea required rows="2" value={nuevoObjetivoGeneral} onChange={(e) => setNuevoObjetivoGeneral(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Objetivos Específicos</label>
+                    <textarea required rows="2" value={nuevoObjetivosEspecificos} onChange={(e) => setNuevoObjetivosEspecificos(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Hipótesis</label>
+                    <textarea required rows="2" value={nuevaDelimitacion} onChange={(e) => setNuevaDelimitacion(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
+                  </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Cupos Requeridos</label>
                       <input type="number" min="1" max="10" required value={cuposRequeridos} onChange={(e) => setCuposRequeridos(parseInt(e.target.value))} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
@@ -623,20 +795,49 @@ export default function Dashboard() {
                         {OPCIONES_MODALIDAD.map(m => <option key={m} value={m}>{m}</option>)}
                       </select>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Carrera Destino</label>
-                      <select value={nuevaCarrera} onChange={(e) => setNuevaCarrera(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none truncate">
-                        {OPCIONES_CARRERAS.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
+                  </div>
+
+                  {/* SELECCIÓN MÚLTIPLE DE CARRERAS CON CHECKBOXES */}
+                  <div>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="block text-sm font-semibold text-slate-700">Carreras Destino</label>
+                      <button
+                        type="button"
+                        onClick={() => setNuevasCarreras(nuevasCarreras.length === LISTA_CARRERAS.length ? [] : [...LISTA_CARRERAS])}
+                        className="text-xs text-blue-600 hover:underline font-medium"
+                      >
+                        {nuevasCarreras.length === LISTA_CARRERAS.length ? 'Deseleccionar todas' : 'Seleccionar todas (Multidisciplinario)'}
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                      {LISTA_CARRERAS.map(c => (
+                        <label key={c} className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer hover:text-blue-700 select-none">
+                          <input
+                            type="checkbox"
+                            checked={nuevasCarreras.includes(c)}
+                            onChange={() => handleToggleCarreraCrear(c)}
+                            className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                          />
+                          <span>{c}</span>
+                        </label>
+                      ))}
                     </div>
                   </div>
 
                   <div className="pt-3 border-t border-slate-100">
                     <label className="block text-sm font-bold text-slate-700 mb-2">Protocolo Oficial / Convocatoria (Opcional)</label>
                     <div className="space-y-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                      <div><label className="block text-xs font-medium text-slate-500 mb-1">Subir Archivo PDF</label><input type="file" accept=".pdf" onChange={(e) => { setProtocoloFile(e.target.files[0]); setProtocoloUrl(''); }} className="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer" /></div>
-                      <div className="flex items-center gap-2"><hr className="flex-grow border-slate-200" /><span className="text-xs text-slate-400 font-medium">O</span><hr className="flex-grow border-slate-200" /></div>
-                      <div><label className="block text-xs font-medium text-slate-500 mb-1">Enlace Externo (Google Drive)</label><input type="url" value={protocoloUrl} onChange={(e) => { setProtocoloUrl(e.target.value); setProtocoloFile(null); }} placeholder="https://drive.google.com/..." className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none" disabled={!!protocoloFile} /></div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-500 mb-1">Subir Archivo PDF</label>
+                        <input type="file" accept=".pdf" onChange={(e) => { setProtocoloFile(e.target.files[0]); setProtocoloUrl(''); }} className="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <hr className="flex-grow border-slate-200" /><span className="text-xs text-slate-400 font-medium">O</span><hr className="flex-grow border-slate-200" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-500 mb-1">Enlace Externo (Google Drive)</label>
+                        <input type="url" value={protocoloUrl} onChange={(e) => { setProtocoloUrl(e.target.value); setProtocoloFile(null); }} placeholder="https://drive.google.com/..." className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none" disabled={!!protocoloFile} />
+                      </div>
                     </div>
                   </div>
 
@@ -653,15 +854,32 @@ export default function Dashboard() {
           {isEditModalOpen && (
             <div className="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
-                <div className="px-6 py-4 border-b border-slate-100 flex-shrink-0"><h3 className="text-lg font-bold text-slate-800">Editar Proyecto</h3></div>
+                <div className="px-6 py-4 border-b border-slate-100 flex-shrink-0">
+                  <h3 className="text-lg font-bold text-slate-800">Editar Proyecto</h3>
+                </div>
                 <form onSubmit={handleActualizarProyecto} className="p-6 space-y-4 overflow-y-auto">
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Título</label><input type="text" required value={editTitulo} onChange={(e) => setEditTitulo(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" /></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Planteamiento del problema</label><textarea required rows="3" value={editPlanteamiento} onChange={(e) => setEditPlanteamiento(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" /></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Objetivo general</label><textarea required rows="2" value={editObjetivoGeneral} onChange={(e) => setEditObjetivoGeneral(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" /></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Objetivos Específicos</label><textarea required rows="2" value={editObjetivosEspecificos} onChange={(e) => setEditObjetivosEspecificos(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" /></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Delimitación</label><textarea required rows="2" value={editDelimitacion} onChange={(e) => setEditDelimitacion(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" /></div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Título</label>
+                    <input type="text" required value={editTitulo} onChange={(e) => setEditTitulo(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Planteamiento del problema</label>
+                    <textarea required rows="3" value={editPlanteamiento} onChange={(e) => setEditPlanteamiento(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Objetivo general</label>
+                    <textarea required rows="2" value={editObjetivoGeneral} onChange={(e) => setEditObjetivoGeneral(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Objetivos Específicos</label>
+                    <textarea required rows="2" value={editObjetivosEspecificos} onChange={(e) => setEditObjetivosEspecificos(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Hipótesis</label>
+                    <textarea required rows="2" value={editDelimitacion} onChange={(e) => setEditDelimitacion(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
+                  </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Cupos</label>
                       <input type="number" min="1" max="10" required value={editCupos} onChange={(e) => setEditCupos(parseInt(e.target.value))} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
@@ -669,7 +887,9 @@ export default function Dashboard() {
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Estado</label>
                       <select value={editEstado} onChange={(e) => setEditEstado(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-                        <option value="En preparación">En preparación</option><option value="Activo">Activo</option><option value="Finalizado">Finalizado</option>
+                        <option value="Activo">Activo</option>
+                        <option value="En preparación">En preparación</option>
+                        <option value="Finalizado">Finalizado</option>
                       </select>
                     </div>
                     <div>
@@ -678,20 +898,49 @@ export default function Dashboard() {
                         {OPCIONES_MODALIDAD.map(m => <option key={m} value={m}>{m}</option>)}
                       </select>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Carrera</label>
-                      <select value={editCarrera} onChange={(e) => setEditCarrera(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none truncate">
-                        {OPCIONES_CARRERAS.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
+                  </div>
+
+                  {/* EDICIÓN MÚLTIPLE DE CARRERAS CON CHECKBOXES */}
+                  <div>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="block text-sm font-semibold text-slate-700">Carreras Destino</label>
+                      <button
+                        type="button"
+                        onClick={() => setEditCarreras(editCarreras.length === LISTA_CARRERAS.length ? [] : [...LISTA_CARRERAS])}
+                        className="text-xs text-blue-600 hover:underline font-medium"
+                      >
+                        {editCarreras.length === LISTA_CARRERAS.length ? 'Deseleccionar todas' : 'Seleccionar todas (Multidisciplinario)'}
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                      {LISTA_CARRERAS.map(c => (
+                        <label key={c} className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer hover:text-blue-700 select-none">
+                          <input
+                            type="checkbox"
+                            checked={editCarreras.includes(c)}
+                            onChange={() => handleToggleCarreraEditar(c)}
+                            className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                          />
+                          <span>{c}</span>
+                        </label>
+                      ))}
                     </div>
                   </div>
 
                   <div className="pt-3 border-t border-slate-100">
                     <label className="block text-sm font-bold text-slate-700 mb-2">Protocolo Oficial / Convocatoria</label>
                     <div className="space-y-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                      <div><label className="block text-xs font-medium text-slate-500 mb-1">Subir o reemplazar Archivo PDF</label><input type="file" accept=".pdf" onChange={(e) => { setEditProtocoloFile(e.target.files[0]); setEditProtocoloUrl(''); }} className="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer" /></div>
-                      <div className="flex items-center gap-2"><hr className="flex-grow border-slate-200" /><span className="text-xs text-slate-400 font-medium">O</span><hr className="flex-grow border-slate-200" /></div>
-                      <div><label className="block text-xs font-medium text-slate-500 mb-1">Enlace Externo (Google Drive)</label><input type="url" value={editProtocoloUrl} onChange={(e) => { setEditProtocoloUrl(e.target.value); setEditProtocoloFile(null); }} placeholder="https://drive.google.com/..." className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none" disabled={!!editProtocoloFile} /></div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-500 mb-1">Subir o reemplazar Archivo PDF</label>
+                        <input type="file" accept=".pdf" onChange={(e) => { setEditProtocoloFile(e.target.files[0]); setEditProtocoloUrl(''); }} className="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <hr className="flex-grow border-slate-200" /><span className="text-xs text-slate-400 font-medium">O</span><hr className="flex-grow border-slate-200" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-500 mb-1">Enlace Externo (Google Drive)</label>
+                        <input type="url" value={editProtocoloUrl} onChange={(e) => { setEditProtocoloUrl(e.target.value); setEditProtocoloFile(null); }} placeholder="https://drive.google.com/..." className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none" disabled={!!editProtocoloFile} />
+                      </div>
                     </div>
                   </div>
 

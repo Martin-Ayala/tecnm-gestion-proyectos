@@ -270,9 +270,9 @@ export default function ProyectoDetalle() {
               <InfoBox titulo="Planteamiento del problema" texto={proyecto.planteamiento_problema || proyecto.descripcion} />
               <InfoBox titulo="Objetivo general" texto={proyecto.objetivo_general || proyecto.objetivo} />
               <InfoBox titulo="Objetivos Específicos" texto={proyecto.objetivos_especificos || proyecto.pre_requisitos} />
-              <InfoBox titulo="Delimitación" texto={proyecto.delimitacion || proyecto.requisitos} />
+              <InfoBox titulo="Hipótesis" texto={proyecto.delimitacion || proyecto.requisitos} />
               
-              {user && proyecto.documento_protocolo_url && (
+              {user && (
                 <div className="mt-6 p-5 bg-blue-50 rounded-lg border border-blue-100 flex items-center justify-between flex-wrap gap-4">
                   <div>
                     <h4 className="text-sm font-bold text-blue-900 flex items-center gap-2">
@@ -281,10 +281,17 @@ export default function ProyectoDetalle() {
                     </h4>
                     <p className="text-xs text-blue-700 mt-1">Revisa el documento original de investigación planteado por el docente.</p>
                   </div>
-                  <a href={proyecto.documento_protocolo_url} target="_blank" rel="noreferrer" className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-md text-sm font-semibold transition-colors shadow-sm flex items-center gap-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                    Descargar Documento
-                  </a>
+                  {proyecto.documento_protocolo_url ? (
+                    <a href={proyecto.documento_protocolo_url} target="_blank" rel="noreferrer" className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-md text-sm font-semibold transition-colors shadow-sm flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                      Descargar Documento
+                    </a>
+                  ) : (
+                    <div className="flex items-center gap-2 bg-slate-200/60 text-slate-500 px-4 py-2 rounded-md text-sm font-semibold border border-slate-300 shadow-sm cursor-not-allowed">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                      No se adjuntó documento
+                    </div>
+                  )}
                 </div>
               )}
 
