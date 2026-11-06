@@ -4,12 +4,12 @@ import { supabase } from '../lib/supabase';
 const AuthContext = createContext({});
 
 export const AuthProvider = ({ children }) => {
+  // El loading ya arranca en 'true' para la primera carga de la página
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const fetchUserProfile = async (authUser) => {
-    // 1. VITAL: Avisar al sistema que empezamos a procesar datos
-    setLoading(true); 
+    // ❌ ELIMINAMOS el setLoading(true) de aquí para que no parpadee al cambiar de pestaña
 
     if (!authUser) {
       setUser(null);
@@ -31,7 +31,7 @@ export const AuthProvider = ({ children }) => {
       setUser(authUser);
     }
     
-    // Termina de cargar
+    // Al terminar, siempre apagamos el loading (y se quedará apagado)
     setLoading(false);
   };
 
