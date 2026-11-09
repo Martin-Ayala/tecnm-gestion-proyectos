@@ -10,9 +10,21 @@ export default function AdminPanel({ onRefreshProyectos, user }) {
     const [busquedaUsuario, setBusquedaUsuario] = useState('');
     const [filtroRol, setFiltroRol] = useState('Todos');
 
+    // Estados para Edición de Usuario (Admin)
+    const [isEditUserModalOpen, setIsEditUserModalOpen] = useState(false);
+    const [usuarioEditando, setUsuarioEditando] = useState(null);
+    const [editNombre, setEditNombre] = useState('');
+    const [editControl, setEditControl] = useState('');
+    const [editCarrera, setEditCarrera] = useState('');
+    const [guardandoUsuario, setGuardandoUsuario] = useState(false);
+
     // Estados para Postulaciones
     const [todasPostulaciones, setTodasPostulaciones] = useState([]);
     const [loadingPostulaciones, setLoadingPostulaciones] = useState(false);
+
+    // Estados para Soporte/Correcciones
+    const [reportesSoporte, setReportesSoporte] = useState([]);
+    const [loadingSoporte, setLoadingSoporte] = useState(false);
 
     // Estados para Aviso Global (Solo Admin)
     const [mensajeGlobal, setMensajeGlobal] = useState('');
@@ -20,6 +32,14 @@ export default function AdminPanel({ onRefreshProyectos, user }) {
     const [enviandoAviso, setEnviandoAviso] = useState(false);
 
     const esAdmin = user?.rol === 'Administrador';
+
+    const OPCIONES_CARRERAS = [
+        "Ingeniería en Sistemas Computacionales",
+        "Ingeniería en Gestión Empresarial",
+        "Ingeniería Industrial",
+        "Ingeniería en Administración",
+        "Ingeniería en Industrias Alimentarias"
+    ];
 
     useEffect(() => {
         const cargarDatosIniciales = async () => {
@@ -46,13 +66,29 @@ export default function AdminPanel({ onRefreshProyectos, user }) {
 
             if (errPostulaciones) console.error('Error cargando postulaciones:', errPostulaciones);
             else {
-                // Si es investigador, filtramos para que solo vea las postulaciones de SUS proyectos
-                const post = esAdmin 
-                    ? dataPostulaciones 
+                const post = esAdmin
+                    ? dataPostulaciones
                     : dataPostulaciones.filter(p => p.proyecto?.investigador_id === user?.id);
                 setTodasPostulaciones(post || []);
             }
             setLoadingPostulaciones(false);
+
+            // 3. Cargar Reportes de Soporte (Solo Admin)
+            if (esAdmin) {
+                setLoadingSoporte(true);
+                const { data: dataSoporte, error: errSoporte } = await supabase
+                    .from('notificaciones')
+                    .select('*')
+                    .eq('tipo', 'soporte')
+                    .order('id', { ascending: false });
+
+                if (errSoporte) {
+                    console.error('Error cargando soporte:', errSoporte);
+                } else {
+                    setReportesSoporte(dataSoporte || []);
+                }
+                setLoadingSoporte(false);
+            }
         };
 
         cargarDatosIniciales();
@@ -73,12 +109,49 @@ export default function AdminPanel({ onRefreshProyectos, user }) {
         }
 
         if (!data || data.length === 0) {
-            alert('La base de datos bloqueó la actualización (0 filas afectadas). Ejecuta el script SQL en Supabase para otorgar permisos.');
+            alert('La base de datos bloqueó la actualización. Ejecuta el script SQL en Supabase para otorgar permisos.');
             return;
         }
 
         setUsuarios(usuarios.map(u => u.id === usuarioId ? { ...u, rol: nuevoRol } : u));
         alert(`Rol actualizado exitosamente a "${nuevoRol}".`);
+    };
+
+    // Editar Datos Básicos de Usuario (SOLO ADMIN)
+    const abrirModalEdicionUsuario = (usuario) => {
+        setUsuarioEditando(usuario.id);
+        setEditNombre(usuario.nombre_completo || '');
+        setEditControl(usuario.numero_control || '');
+        setEditCarrera(usuario.carrera || '');
+        setIsEditUserModalOpen(true);
+    };
+
+    const handleGuardarEdicionUsuario = async (e) => {
+        e.preventDefault();
+        setGuardandoUsuario(true);
+
+        const { error } = await supabase
+            .from('usuarios')
+            .update({
+                nombre_completo: editNombre,
+                numero_control: editControl,
+                carrera: editCarrera
+            })
+            .eq('id', usuarioEditando);
+
+        if (error) {
+            alert(`Error al actualizar usuario: ${error.message}`);
+        } else {
+            setUsuarios(usuarios.map(u => u.id === usuarioEditando ? {
+                ...u,
+                nombre_completo: editNombre,
+                numero_control: editControl,
+                carrera: editCarrera
+            } : u));
+            alert('Datos del usuario actualizados correctamente.');
+            setIsEditUserModalOpen(false);
+        }
+        setGuardandoUsuario(false);
     };
 
     // Eliminar usuario de la tabla pública (SOLO ADMIN)
@@ -96,19 +169,42 @@ export default function AdminPanel({ onRefreshProyectos, user }) {
         alert(`Usuario "${nombre}" eliminado con éxito.`);
     };
 
+    // Marcar Reporte de Soporte como Resuelto
+    const handleResolverReporte = async (reporteId) => {
+        const { data, error } = await supabase
+            .from('notificaciones')
+            .delete()
+            .eq('id', reporteId)
+            .select(); // <-- Esto obliga a Supabase a devolver lo que borró
+
+        if (error) {
+            alert(`Error al archivar el reporte: ${error.message}`);
+            return;
+        }
+
+        // Si data viene vacío, significa que Supabase bloqueó la acción por seguridad
+        if (!data || data.length === 0) {
+            alert("⚠️ La base de datos bloqueó la eliminación. Necesitas darle permisos (RLS) a la tabla 'notificaciones' en Supabase para poder borrar.");
+            return;
+        }
+
+        // Si pasó las validaciones, ahora sí lo quitamos de la pantalla
+        setReportesSoporte(reportesSoporte.filter(r => r.id !== reporteId));
+    };
+
     // Intervenir postulación (ADMIN O INVESTIGADOR DUEÑO DEL PROYECTO)
     const handleDictamenAdmin = async (post, nuevoEstado) => {
         const { data, error } = await supabase
             .from('postulaciones')
             .update({ estado: nuevoEstado })
             .eq('id', post.id)
-            .select(); // Obligamos a verificar la actualización
+            .select();
 
         if (error) {
             alert('Error al actualizar la postulación.');
             return;
         }
-        
+
         if (!data || data.length === 0) {
             alert('⚠️ La base de datos bloqueó la acción. No tienes permisos para dictaminar (RLS).');
             return;
@@ -128,23 +224,20 @@ export default function AdminPanel({ onRefreshProyectos, user }) {
         }
     };
 
-    // === ELIMINAR POSTULACIÓN CORREGIDA ===
     const handleEliminarPostulacion = async (postulacionId) => {
         if (!window.confirm("¿Estás seguro de borrar permanentemente esta solicitud? Si lo haces, el estudiante quedará desbloqueado y podrá volver a postularse a este proyecto.")) return;
 
-        // Añadimos .select() para que Supabase confiese si realmente borró algo
         const { data, error } = await supabase
             .from('postulaciones')
             .delete()
             .eq('id', postulacionId)
-            .select(); 
+            .select();
 
         if (error) {
             alert(`Error al eliminar la solicitud: ${error.message}`);
             return;
         }
 
-        // Esta es la validación que te protegerá de fallos silenciosos
         if (!data || data.length === 0) {
             alert("⚠️ La base de datos bloqueó la eliminación (0 filas afectadas). Necesitas configurar los permisos SQL en Supabase para permitir borrar postulaciones.");
             return;
@@ -188,7 +281,6 @@ export default function AdminPanel({ onRefreshProyectos, user }) {
         setEnviandoAviso(false);
     };
 
-    // Exportar datos a CSV compatible con Excel
     const exportarCSV = (tipo) => {
         let encabezados, filas, nombreArchivo;
 
@@ -223,7 +315,6 @@ export default function AdminPanel({ onRefreshProyectos, user }) {
         document.body.removeChild(link);
     };
 
-    // Filtrado de usuarios
     const usuariosFiltrados = usuarios.filter(u => {
         const coincideTexto =
             u.nombre_completo?.toLowerCase().includes(busquedaUsuario.toLowerCase()) ||
@@ -235,9 +326,11 @@ export default function AdminPanel({ onRefreshProyectos, user }) {
 
     const totalEstudiantes = usuarios.filter(u => u.rol === 'Estudiante').length;
     const totalInvestigadores = usuarios.filter(u => u.rol === 'Investigador').length;
+    const totalSoporte = reportesSoporte.length;
 
     return (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-12">
+
             {/* CABECERA DEL PANEL */}
             <div className="bg-slate-900 text-white p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
@@ -252,7 +345,6 @@ export default function AdminPanel({ onRefreshProyectos, user }) {
                     </p>
                 </div>
 
-                {/* BOTONES DE EXPORTACIÓN */}
                 <div className="flex gap-2 flex-wrap">
                     <button
                         onClick={() => exportarCSV('usuarios')}
@@ -283,14 +375,23 @@ export default function AdminPanel({ onRefreshProyectos, user }) {
                 >
                     📑 {esAdmin ? 'Auditoría de Postulaciones' : 'Solicitudes a Mis Proyectos'} ({todasPostulaciones.length})
                 </button>
-                
+
                 {esAdmin && (
-                    <button
-                        onClick={() => setTabActiva('avisos')}
-                        className={`py-3.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${tabActiva === 'avisos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
-                    >
-                        📢 Enviar Comunicado Oficial
-                    </button>
+                    <>
+                        <button
+                            onClick={() => setTabActiva('soporte')}
+                            className={`py-3.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'soporte' ? 'border-amber-500 text-amber-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                        >
+                            🛠️ Solicitudes de Corrección
+                            {totalSoporte > 0 && <span className="bg-red-500 text-white px-1.5 py-0.5 rounded-full text-[10px] font-bold">{totalSoporte}</span>}
+                        </button>
+                        <button
+                            onClick={() => setTabActiva('avisos')}
+                            className={`py-3.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${tabActiva === 'avisos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                        >
+                            📢 Enviar Comunicado Oficial
+                        </button>
+                    </>
                 )}
             </div>
 
@@ -374,17 +475,22 @@ export default function AdminPanel({ onRefreshProyectos, user }) {
                                                             <option value="Administrador">Administrador</option>
                                                         </select>
                                                     ) : (
-                                                        <span className={`text-xs font-bold px-2.5 py-1.5 rounded-md border ${
-                                                            u.rol === 'Administrador' ? 'bg-amber-50 text-amber-800 border-amber-300' :
-                                                                u.rol === 'Investigador' ? 'bg-purple-50 text-purple-800 border-purple-200' :
-                                                                    'bg-blue-50 text-blue-800 border-blue-200'
-                                                        }`}>
+                                                        <span className={`text-xs font-bold px-2.5 py-1.5 rounded-md border ${u.rol === 'Administrador' ? 'bg-amber-50 text-amber-800 border-amber-300' :
+                                                            u.rol === 'Investigador' ? 'bg-purple-50 text-purple-800 border-purple-200' :
+                                                                'bg-blue-50 text-blue-800 border-blue-200'
+                                                            }`}>
                                                             {u.rol}
                                                         </span>
                                                     )}
                                                 </td>
                                                 {esAdmin && (
-                                                    <td className="p-3.5 text-right">
+                                                    <td className="p-3.5 text-right space-x-2">
+                                                        <button
+                                                            onClick={() => abrirModalEdicionUsuario(u)}
+                                                            className="text-xs text-blue-600 hover:text-blue-800 font-semibold px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                                                        >
+                                                            Editar Datos
+                                                        </button>
                                                         <button
                                                             onClick={() => handleEliminarUsuario(u.id, u.nombre_completo)}
                                                             className="text-xs text-red-600 hover:text-red-800 font-semibold px-2 py-1 rounded hover:bg-red-50 transition-colors"
@@ -484,7 +590,52 @@ export default function AdminPanel({ onRefreshProyectos, user }) {
                     </div>
                 )}
 
-                {/* PESTAÑA 3: COMUNICADOS GLOBALES (SOLO ADMIN) */}
+                {/* PESTAÑA 3: SOPORTE Y CORRECCIONES (SOLO ADMIN) */}
+                {esAdmin && tabActiva === 'soporte' && (
+                    <div>
+                        <div className="mb-4">
+                            <h4 className="font-bold text-slate-800">Bandeja de Reportes de Alumnos</h4>
+                            <p className="text-sm text-slate-500">Aquí se muestran las solicitudes enviadas desde el perfil de los alumnos para corregir su Matrícula o Carrera.</p>
+                        </div>
+                        {loadingSoporte ? (
+                            <p className="text-center py-8 text-slate-500 text-sm">Cargando solicitudes...</p>
+                        ) : reportesSoporte.length === 0 ? (
+                            <div className="text-center py-8 bg-slate-50 rounded-lg border border-slate-200">
+                                <p className="text-3xl mb-2">🎉</p>
+                                <p className="text-slate-500 font-medium">No hay reportes de corrección pendientes.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {reportesSoporte.map((reporte) => (
+                                    <div key={reporte.id} className="bg-amber-50 border border-amber-200 p-5 rounded-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <span className="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Ticket de Soporte</span>
+                                                <span className="text-xs text-slate-500 font-semibold">
+                                                    {(reporte.created_at || reporte.fecha_creacion)
+                                                        ? new Date(reporte.created_at || reporte.fecha_creacion).toLocaleDateString('es-MX', { hour: '2-digit', minute: '2-digit' })
+                                                        : 'Reciente'}
+                                                </span>
+                                            </div>
+                                            <p className="text-slate-800 font-medium">{reporte.mensaje}</p>
+                                            <p className="text-xs text-amber-700 mt-2 italic">
+                                                * Para resolverlo, busca el nombre del alumno en el <b>Directorio de Usuarios</b>, haz clic en "Editar Datos" y corrige la información.
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => handleResolverReporte(reporte.id)}
+                                            className="bg-white text-slate-700 border border-slate-300 hover:bg-slate-100 px-4 py-2 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap"
+                                        >
+                                            ✅ Marcar como resuelto
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* PESTAÑA 4: COMUNICADOS GLOBALES (SOLO ADMIN) */}
                 {esAdmin && tabActiva === 'avisos' && (
                     <form onSubmit={handleEnviarAvisoGlobal} className="max-w-xl space-y-4">
                         <div>
@@ -526,6 +677,61 @@ export default function AdminPanel({ onRefreshProyectos, user }) {
                     </form>
                 )}
             </div>
+
+            {/* MODAL DE EDICIÓN DE USUARIO PARA ADMINISTRADORES */}
+            {isEditUserModalOpen && (
+                <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden">
+                        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                            <h3 className="font-bold text-slate-800">Modificar Datos de Usuario</h3>
+                            <button onClick={() => setIsEditUserModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+                        </div>
+                        <form onSubmit={handleGuardarEdicionUsuario} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1">Nombre Completo</label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={editNombre}
+                                    onChange={(e) => setEditNombre(e.target.value)}
+                                    className="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-1">No. de Control</label>
+                                    <input
+                                        type="text"
+                                        value={editControl}
+                                        onChange={(e) => setEditControl(e.target.value)}
+                                        placeholder="Solo para estudiantes"
+                                        className="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-1">Carrera</label>
+                                    <select
+                                        value={editCarrera}
+                                        onChange={(e) => setEditCarrera(e.target.value)}
+                                        className="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                                    >
+                                        <option value="">No definida</option>
+                                        {OPCIONES_CARRERAS.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-4">
+                                <button type="button" onClick={() => setIsEditUserModalOpen(false)} className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-100 rounded-lg">
+                                    Cancelar
+                                </button>
+                                <button type="submit" disabled={guardandoUsuario} className="px-4 py-2 text-sm bg-blue-600 text-white font-medium hover:bg-blue-700 rounded-lg disabled:opacity-50 shadow-sm">
+                                    {guardandoUsuario ? 'Guardando...' : 'Guardar Cambios'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
