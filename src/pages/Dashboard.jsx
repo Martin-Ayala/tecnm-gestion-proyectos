@@ -261,19 +261,42 @@ export default function Dashboard() {
 
             {/* BARRA DE NAVEGACIÓN */}
             <nav className="bg-white shadow-sm px-6 py-4 flex justify-between items-center border-b border-slate-200 sticky top-0 z-50">
-                <div className="flex items-center gap-4">
-                    <Link to="/" className="text-xl font-bold text-blue-900 hover:opacity-90 transition-opacity">TecNM <span className="text-blue-600">Gestión Interna</span></Link>
-                    <Link to="/" className="hidden sm:flex items-center gap-1.5 text-xs font-semibold bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 px-3 py-1.5 rounded-md border border-slate-200 transition-colors">
-                        <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg> Ir al Inicio
+                <div className="flex items-center gap-3">
+                    <Link to="/" className="text-xl font-bold text-blue-900 hover:opacity-90 transition-opacity">
+                        TecNM <span className="text-blue-600">Gestión Interna</span>
+                    </Link>
+                    <Link 
+                        to="/" 
+                        className="hidden sm:flex items-center gap-1.5 text-xs font-semibold bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 px-3 py-1.5 rounded-md border border-slate-200 transition-colors"
+                    >
+                        <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+                        Ir al Inicio
+                    </Link>
+                    <Link 
+                        to="/directorio" 
+                        className="hidden sm:flex items-center gap-1.5 text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-md border border-indigo-200 transition-colors"
+                    >
+                        <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                        Directorio
                     </Link>
                 </div>
                 <div className="flex items-center gap-3">
                     <Link to="/perfil" className="hidden md:flex items-center gap-3 bg-white hover:bg-blue-50/80 border border-slate-200 hover:border-blue-300 py-1.5 pl-2 pr-3.5 rounded-full transition-all duration-200 shadow-sm hover:shadow group no-underline" title="Ir a mi perfil">
-                        {user?.avatar_url ? ( <img src={user.avatar_url} alt="Perfil" className="w-8 h-8 rounded-full object-cover border-2 border-white shadow-sm flex-shrink-0" /> ) : ( <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0 shadow-sm border border-blue-700">{user?.nombre_completo ? user.nombre_completo.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'US'}</div> )}
-                        <div className="flex items-center gap-2"><span className="text-xs font-bold text-slate-800 group-hover:text-blue-700 transition-colors leading-none">{user?.nombre_completo}</span><span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider leading-none">{user?.rol}</span></div>
+                        {user?.avatar_url ? ( 
+                            <img src={user.avatar_url} alt="Perfil" className="w-8 h-8 rounded-full object-cover border-2 border-white shadow-sm flex-shrink-0" /> 
+                        ) : ( 
+                            <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0 shadow-sm border border-blue-700">
+                                {user?.nombre_completo ? user.nombre_completo.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'US'}
+                            </div> 
+                        )}
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-800 group-hover:text-blue-700 transition-colors leading-none">{user?.nombre_completo}</span>
+                            <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider leading-none">{user?.rol}</span>
+                        </div>
                         <svg className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" /></svg>
                     </Link>
                     <NotificacionesBell />
+                    <Link to="/directorio" className="sm:hidden text-xs bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg font-semibold hover:bg-indigo-100 transition-colors">Directorio</Link>
                     <Link to="/perfil" className="sm:hidden text-xs bg-blue-50 text-blue-700 px-3 py-2 rounded-lg font-semibold hover:bg-blue-100 transition-colors">Perfil</Link>
                     <Link to="/" className="sm:hidden text-xs bg-slate-100 text-slate-700 px-3 py-2 rounded-lg font-semibold hover:bg-slate-200 transition-colors">Inicio</Link>
                     <button onClick={handleLogout} className="text-sm bg-slate-100 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 font-semibold transition-colors">Cerrar Sesión</button>
