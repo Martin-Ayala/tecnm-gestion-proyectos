@@ -94,6 +94,7 @@ export default function ProyectoDetalle() {
   const [idPostulacionExistente, setIdPostulacionExistente] = useState(null); 
   const [postulando, setPostulando] = useState(false);
   const [alumnosAceptados, setAlumnosAceptados] = useState(0);
+  const [residentesProyecto, setResidentesProyecto] = useState([]); // Array de residentes aceptados
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [mensaje, setMensaje] = useState('');
@@ -107,14 +108,42 @@ export default function ProyectoDetalle() {
   const [archivoAdjuntoUrl, setArchivoAdjuntoUrl] = useState('');
   const [subiendoTarea, setSubiendoTarea] = useState(false);
 
+  // Estados para Expedientes (Modales)
+  const [isAsesorModalOpen, setIsAsesorModalOpen] = useState(false);
+  const [asesorSeleccionado, setAsesorSeleccionado] = useState(null);
+  const [isResidenteModalOpen, setIsResidenteModalOpen] = useState(false);
+  const [residenteSeleccionado, setResidenteSeleccionado] = useState(null);
+
   useEffect(() => {
     const fetchDatos = async () => {
-      const { data: dataProyecto, error: errorProyecto } = await supabase.from('proyectos').select('*, investigador:usuarios!investigador_id(nombre_completo)').eq('id', id).single();
-      if (errorProyecto) console.error("Error al cargar proyecto:", errorProyecto);
-      else setProyecto(dataProyecto);
+      // Consulta enriquecida: Trae el proyecto, perfil completo del investigador y las postulaciones de los estudiantes
+      const { data: dataProyecto, error: errorProyecto } = await supabase
+        .from('proyectos')
+        .select(`
+            *, 
+            investigador:usuarios!investigador_id(
+                id, nombre_completo, avatar_url, correo_institucional, telefono, departamento, ubicacion_cubiculo, lineas_investigacion
+            ),
+            postulaciones:postulaciones(
+                id, estado,
+                estudiante:usuarios!id_estudiante(
+                    id, nombre_completo, avatar_url, telefono, correo_institucional, semestre, habilidades, enlaces_profesionales, carrera, numero_control
+                )
+            )
+        `)
+        .eq('id', id)
+        .single();
 
-      const { count: countAceptados } = await supabase.from('postulaciones').select('*', { count: 'exact', head: true }).eq('id_proyecto', id).eq('estado', 'Aceptado');
-      setAlumnosAceptados(countAceptados || 0);
+      if (errorProyecto) {
+        console.error("Error al cargar proyecto:", errorProyecto);
+      } else {
+        setProyecto(dataProyecto);
+        
+        // Calcular alumnos aceptados y guardarlos para mostrar "Equipo de Trabajo"
+        const aceptados = dataProyecto.postulaciones ? dataProyecto.postulaciones.filter(p => p.estado === 'Aceptado') : [];
+        setResidentesProyecto(aceptados);
+        setAlumnosAceptados(aceptados.length);
+      }
 
       if (user?.rol === 'Estudiante') {
         const { data: dataPostulacion } = await supabase.from('postulaciones').select('id, estado, mensaje_estudiante, documento_kardex_url').eq('id_proyecto', id).eq('id_estudiante', user.id).single();
@@ -244,6 +273,17 @@ export default function ProyectoDetalle() {
     setEntregables(entregables.filter(t => t.id !== tarea.id));
   };
 
+  // Funciones para Modales de Expediente
+  const abrirModalAsesor = (asesor) => {
+    setAsesorSeleccionado(asesor);
+    setIsAsesorModalOpen(true);
+  };
+
+  const abrirModalResidente = (estudiante) => {
+    setResidenteSeleccionado(estudiante);
+    setIsResidenteModalOpen(true);
+  };
+
   if (loading) return <div className="min-h-screen flex justify-center items-center">Cargando detalles...</div>;
   if (!proyecto) return <div className="min-h-screen flex justify-center items-center">Proyecto no encontrado.</div>;
 
@@ -253,6 +293,7 @@ export default function ProyectoDetalle() {
     <div className="min-h-screen bg-slate-50 p-6 md:p-12 relative">
       <div className="max-w-6xl mx-auto space-y-8">
         
+        {/* ENCABEZADO Y DETALLES DEL PROYECTO */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="p-6 border-b border-slate-200 flex justify-between items-start gap-4 flex-wrap md:flex-nowrap">
             <h1 className="text-xl md:text-2xl font-bold text-slate-900 leading-snug">{proyecto.titulo}</h1>
@@ -295,12 +336,67 @@ export default function ProyectoDetalle() {
                 </div>
               )}
 
-              <div className="mt-8 pt-4 border-t border-slate-100 text-sm flex flex-col md:flex-row justify-between items-center gap-4">
-                <div className="flex flex-col gap-1 text-center md:text-left w-full md:w-auto">
-                  <div className="text-slate-500">Investigador: <span className="font-semibold text-slate-700 uppercase">{proyecto.investigador?.nombre_completo}</span></div>
-                  <div className="text-slate-500">Cupos Ocupados: <span className={`font-bold ${alumnosAceptados >= (proyecto.cupos_requeridos || 1) ? 'text-red-600' : 'text-blue-600'}`}>{alumnosAceptados} / {proyecto.cupos_requeridos || 1}</span></div>
+              {/* BARRA INFERIOR: INVESTIGADOR, CUPOS Y ACCIONES */}
+              <div className="mt-8 pt-4 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                
+                {/* Lado Izquierdo: Info del Investigador y Cupos */}
+                <div className="flex flex-col gap-3 w-full md:w-auto">
+                    {/* Tarjeta del Asesor (Clicable) */}
+                    <div className="flex justify-between items-center w-full max-w-[280px]">
+                        <button 
+                            onClick={() => abrirModalAsesor(proyecto.investigador)}
+                            className="flex items-center gap-2 text-left group hover:bg-slate-50 p-1.5 rounded-lg transition-colors -ml-1.5"
+                            title="Ver perfil del investigador"
+                        >
+                            {proyecto.investigador?.avatar_url ? (
+                                <img src={proyecto.investigador.avatar_url} className="w-9 h-9 rounded-full object-cover border border-slate-200 shadow-sm" alt="Asesor" />
+                            ) : (
+                                <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 font-bold text-sm flex items-center justify-center shadow-sm">
+                                    {proyecto.investigador?.nombre_completo?.substring(0, 2).toUpperCase() || 'IN'}
+                                </div>
+                            )}
+                            <div>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider leading-none mb-1">Asesor Técnico</p>
+                                <p className="text-xs font-bold text-slate-700 group-hover:text-blue-600 transition-colors uppercase leading-none">{proyecto.investigador?.nombre_completo}</p>
+                            </div>
+                        </button>
+                    </div>
+
+                    <div className="text-slate-500 text-sm pl-1.5">
+                        Cupos Ocupados: <span className={`font-bold ${alumnosAceptados >= (proyecto.cupos_requeridos || 1) ? 'text-red-600' : 'text-blue-600'}`}>{alumnosAceptados} / {proyecto.cupos_requeridos || 1}</span>
+                    </div>
+
+                    {/* BLOQUE: EQUIPO DE TRABAJO (SÓLO PARA DOCENTES/ADMIN) */}
+                    {(user?.rol === 'Investigador' || user?.rol === 'Administrador') && residentesProyecto.length > 0 && (
+                        <div className="w-full bg-indigo-50 border border-indigo-100 p-3 rounded-lg mt-1 text-left max-w-sm">
+                            <p className="text-[10px] font-bold text-indigo-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                                Equipo de Trabajo
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                                {residentesProyecto.map(res => (
+                                    <button 
+                                        key={res.id} 
+                                        onClick={() => abrirModalResidente(res.estudiante)} 
+                                        className="flex items-center gap-2 bg-white border border-indigo-200 pl-1 pr-3 py-1 rounded-full hover:bg-indigo-100 transition-colors shadow-sm overflow-hidden group"
+                                        title="Ver expediente del residente"
+                                    >
+                                        {res.estudiante?.avatar_url ? (
+                                            <img src={res.estudiante.avatar_url} alt="Avatar" className="w-6 h-6 rounded-full object-cover border border-slate-200" />
+                                        ) : (
+                                            <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold text-[9px] flex items-center justify-center flex-shrink-0">
+                                                {res.estudiante?.nombre_completo ? res.estudiante.nombre_completo.substring(0,2).toUpperCase() : 'RS'}
+                                            </div>
+                                        )}
+                                        <span className="text-xs font-semibold text-slate-700 truncate max-w-[100px] group-hover:text-indigo-800">{res.estudiante?.nombre_completo}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
                 
+                {/* Lado Derecho: Acciones del Estudiante */}
                 {user?.rol === 'Estudiante' && proyecto.estado?.toLowerCase() !== 'finalizado' && (
                   <div>
                     {yaPostulado === 'Aceptado' ? (
@@ -334,6 +430,7 @@ export default function ProyectoDetalle() {
           </div>
         </div>
 
+        {/* ÁREA DE SEGUIMIENTO (ENTREGABLES) */}
         {(yaPostulado === 'Aceptado' || user?.id === proyecto.investigador_id || user?.rol === 'Administrador') && (
           <div className="bg-slate-900 rounded-xl shadow-lg border border-slate-700 overflow-hidden">
             <div className="p-6 border-b border-slate-700 bg-slate-800">
@@ -362,6 +459,7 @@ export default function ProyectoDetalle() {
         )}
       </div>
 
+      {/* MODAL: POSTULACIÓN ESTUDIANTE */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-lg w-full overflow-hidden flex flex-col">
@@ -386,6 +484,124 @@ export default function ProyectoDetalle() {
           </div>
         </div>
       )}
+
+      {/* MODAL: EXPEDIENTE DEL ASESOR (VISTO POR EL ESTUDIANTE) */}
+      {isAsesorModalOpen && asesorSeleccionado && (
+          <div className="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
+                  <div className="bg-blue-700 px-6 py-4 flex justify-between items-center relative overflow-hidden">
+                      <div className="absolute -right-4 -top-4 w-24 h-24 bg-white opacity-10 rounded-full blur-xl"></div>
+                      <h3 className="text-lg font-bold text-white relative z-10 flex items-center gap-2">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                          Perfil del Asesor
+                      </h3>
+                      <button onClick={() => setIsAsesorModalOpen(false)} className="text-blue-200 hover:text-white font-bold text-xl relative z-10">✕</button>
+                  </div>
+                  <div className="p-6 bg-slate-50">
+                      <div className="flex flex-col items-center mb-6 text-center">
+                          {asesorSeleccionado.avatar_url ? (
+                              <img src={asesorSeleccionado.avatar_url} className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-sm mb-3" alt="Avatar" />
+                          ) : (
+                              <div className="w-20 h-20 rounded-full bg-blue-100 border-4 border-white shadow-sm flex items-center justify-center text-blue-700 font-bold text-2xl mb-3">
+                                  {asesorSeleccionado.nombre_completo?.substring(0,2).toUpperCase()}
+                              </div>
+                          )}
+                          <h4 className="text-xl font-bold text-slate-800 leading-tight">{asesorSeleccionado.nombre_completo}</h4>
+                          <p className="text-sm font-semibold text-slate-500 mt-1">{asesorSeleccionado.departamento || 'Docente / Investigador'}</p>
+                      </div>
+
+                      <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 space-y-4">
+                          <div>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Contacto Institucional</p>
+                              <p className="text-sm font-medium text-slate-700 break-all mb-1">📧 {asesorSeleccionado.correo_institucional}</p>
+                              {asesorSeleccionado.telefono ? (
+                                  <a href={`https://wa.me/52${asesorSeleccionado.telefono.replace(/\D/g,'')}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md transition-colors mt-1">
+                                      WhatsApp Institucional
+                                  </a>
+                              ) : (
+                                  <p className="text-sm font-medium text-slate-400">📱 Sin teléfono registrado</p>
+                              )}
+                          </div>
+
+                          <div className="pt-3 border-t border-slate-100">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Ubicación / Cubículo (Asesorías)</p>
+                              <p className="text-sm text-slate-700">{asesorSeleccionado.ubicacion_cubiculo || 'Ubicación no especificada.'}</p>
+                          </div>
+
+                          <div className="pt-3 border-t border-slate-100">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Líneas de Investigación</p>
+                              <p className="text-sm text-slate-700 whitespace-pre-wrap">{asesorSeleccionado.lineas_investigacion || 'No especificadas.'}</p>
+                          </div>
+                      </div>
+                      <div className="mt-6 flex justify-end">
+                          <button onClick={() => setIsAsesorModalOpen(false)} className="bg-slate-800 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-slate-900 transition-colors shadow-sm w-full">Cerrar Perfil</button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* NUEVO MODAL: EXPEDIENTE DE RESIDENTE ACTIVO (VISTO POR EL DOCENTE) */}
+      {isResidenteModalOpen && residenteSeleccionado && (
+          <div className="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
+                  <div className="bg-indigo-700 px-6 py-4 flex justify-between items-center relative overflow-hidden">
+                      <div className="absolute -right-4 -top-4 w-24 h-24 bg-white opacity-10 rounded-full blur-xl"></div>
+                      <h3 className="text-lg font-bold text-white relative z-10 flex items-center gap-2">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" /></svg>
+                          Expediente del Residente
+                      </h3>
+                      <button onClick={() => setIsResidenteModalOpen(false)} className="text-indigo-200 hover:text-white font-bold text-xl relative z-10">✕</button>
+                  </div>
+                  <div className="p-6 bg-slate-50">
+                      <div className="flex flex-col items-center mb-6 text-center">
+                          {residenteSeleccionado.avatar_url ? (
+                              <img src={residenteSeleccionado.avatar_url} className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-sm mb-3" alt="Avatar" />
+                          ) : (
+                              <div className="w-20 h-20 rounded-full bg-indigo-100 border-4 border-white shadow-sm flex items-center justify-center text-indigo-700 font-bold text-2xl mb-3">
+                                  {residenteSeleccionado.nombre_completo?.substring(0,2).toUpperCase()}
+                              </div>
+                          )}
+                          <h4 className="text-xl font-bold text-slate-800 leading-tight">{residenteSeleccionado.nombre_completo}</h4>
+                          <p className="text-sm font-semibold text-slate-500 mt-1">{residenteSeleccionado.carrera || 'Ingeniería en Sistemas Computacionales'}</p>
+                          <p className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full mt-2 border border-indigo-100">Matrícula: {residenteSeleccionado.numero_control || 'N/A'}</p>
+                      </div>
+
+                      <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 space-y-4">
+                          <div>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Contacto Directo</p>
+                              <p className="text-sm font-medium text-slate-700 break-all mb-1">📧 {residenteSeleccionado.correo_institucional}</p>
+                              {residenteSeleccionado.telefono ? (
+                                  <a href={`https://wa.me/52${residenteSeleccionado.telefono.replace(/\D/g,'')}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md transition-colors mt-1">
+                                      WhatsApp
+                                  </a>
+                              ) : (
+                                  <p className="text-sm font-medium text-slate-400">📱 Sin teléfono registrado</p>
+                              )}
+                          </div>
+
+                          <div className="pt-3 border-t border-slate-100">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Habilidades Técnicas</p>
+                              <p className="text-sm text-slate-700 whitespace-pre-wrap">{residenteSeleccionado.habilidades || 'No especificadas.'}</p>
+                          </div>
+
+                          {residenteSeleccionado.enlaces_profesionales && (
+                              <div className="pt-3 border-t border-slate-100">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Portafolio / Enlaces</p>
+                                  <a href={residenteSeleccionado.enlaces_profesionales} target="_blank" rel="noreferrer" className="text-sm font-semibold text-blue-600 hover:underline break-all">
+                                      {residenteSeleccionado.enlaces_profesionales}
+                                  </a>
+                              </div>
+                          )}
+                      </div>
+                      <div className="mt-6 flex justify-end">
+                          <button onClick={() => setIsResidenteModalOpen(false)} className="bg-slate-800 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-slate-900 transition-colors shadow-sm w-full">Cerrar Expediente</button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
     </div>
   );
 }

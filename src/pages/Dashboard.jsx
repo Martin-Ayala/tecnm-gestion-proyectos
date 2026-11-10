@@ -43,7 +43,7 @@ export default function Dashboard() {
     const [nuevaDelimitacion, setNuevaDelimitacion] = useState('');
     const [cuposRequeridos, setCuposRequeridos] = useState(1);
     const [nuevaModalidad, setNuevaModalidad] = useState('Presencial');
-    const [nuevasCarreras, setNuevasCarreras] = useState([LISTA_CARRERAS[0]]); // Array para selección múltiple
+    const [nuevasCarreras, setNuevasCarreras] = useState([LISTA_CARRERAS[0]]);
     const [protocoloFile, setProtocoloFile] = useState(null);
     const [protocoloUrl, setProtocoloUrl] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -59,14 +59,23 @@ export default function Dashboard() {
     const [editEstado, setEditEstado] = useState('Activo');
     const [editCupos, setEditCupos] = useState(1);
     const [editModalidad, setEditModalidad] = useState('Presencial');
-    const [editCarreras, setEditCarreras] = useState([]); // Array para edición múltiple
+    const [editCarreras, setEditCarreras] = useState([]);
     const [editProtocoloFile, setEditProtocoloFile] = useState(null);
     const [editProtocoloUrl, setEditProtocoloUrl] = useState('');
 
+    // Estados Modal Solicitudes
     const [isPostulacionesModalOpen, setIsPostulacionesModalOpen] = useState(false);
     const [postulaciones, setPostulaciones] = useState([]);
     const [loadingPostulaciones, setLoadingPostulaciones] = useState(false);
     const [proyectoActualTit, setProyectoActualTit] = useState('');
+
+    // Estados para Expediente del Residente (Visto por el Docente)
+    const [isResidenteModalOpen, setIsResidenteModalOpen] = useState(false);
+    const [residenteSeleccionado, setResidenteSeleccionado] = useState(null);
+
+    // NUEVO: Estados para Expediente del Asesor (Visto por el Estudiante)
+    const [isAsesorModalOpen, setIsAsesorModalOpen] = useState(false);
+    const [asesorSeleccionado, setAsesorSeleccionado] = useState(null);
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -77,18 +86,38 @@ export default function Dashboard() {
             if (!user) return;
             setLoadingDatos(true);
 
+            // Consulta para el Catálogo (Proyectos)
             const { data: dataProyectos, error: errProyectos } = await supabase
                 .from('proyectos')
-                .select(`*, investigador:usuarios!investigador_id(nombre_completo), postulaciones:postulaciones!id_proyecto(id, estado)`)
+                .select(`
+                    *, 
+                    investigador:usuarios!investigador_id(nombre_completo), 
+                    postulaciones:postulaciones!id_proyecto(
+                        id, 
+                        estado,
+                        estudiante:usuarios!id_estudiante(
+                            id, nombre_completo, avatar_url, telefono, correo_institucional, semestre, habilidades, enlaces_profesionales, carrera, numero_control
+                        )
+                    )
+                `)
                 .order('fecha_creacion', { ascending: false });
 
             if (errProyectos) console.error("Error cargando proyectos:", errProyectos);
             else setProyectos(dataProyectos || []);
 
+            // Consulta ENRIQUECIDA para el Estudiante (Mis Postulaciones)
             if (user.rol === 'Estudiante') {
                 const { data: dataMisPost, error: errMisPost } = await supabase
                     .from('postulaciones')
-                    .select(`id, estado, fecha_postulacion, proyecto:proyectos!id_proyecto(id, titulo, planteamiento_problema, descripcion, investigador:usuarios!investigador_id(nombre_completo))`)
+                    .select(`
+                        id, estado, fecha_postulacion, 
+                        proyecto:proyectos!id_proyecto(
+                            id, titulo, planteamiento_problema, descripcion, 
+                            investigador:usuarios!investigador_id(
+                                id, nombre_completo, avatar_url, correo_institucional, telefono, departamento, ubicacion_cubiculo, lineas_investigacion
+                            )
+                        )
+                    `)
                     .eq('id_estudiante', user.id)
                     .order('fecha_postulacion', { ascending: false });
 
@@ -101,25 +130,12 @@ export default function Dashboard() {
         fetchDatos();
     }, [refresh, user]);
 
-    // Manejadores para alternar carreras seleccionadas
-    const handleToggleCarreraCrear = (carrera) => {
-        setNuevasCarreras(prev =>
-            prev.includes(carrera) ? prev.filter(c => c !== carrera) : [...prev, carrera]
-        );
-    };
-
-    const handleToggleCarreraEditar = (carrera) => {
-        setEditCarreras(prev =>
-            prev.includes(carrera) ? prev.filter(c => c !== carrera) : [...prev, carrera]
-        );
-    };
+    const handleToggleCarreraCrear = (carrera) => { setNuevasCarreras(prev => prev.includes(carrera) ? prev.filter(c => c !== carrera) : [...prev, carrera]); };
+    const handleToggleCarreraEditar = (carrera) => { setEditCarreras(prev => prev.includes(carrera) ? prev.filter(c => c !== carrera) : [...prev, carrera]); };
 
     const handleCrearProyecto = async (e) => {
         e.preventDefault();
-        if (nuevasCarreras.length === 0) {
-            alert("Por favor selecciona al menos una carrera para el proyecto.");
-            return;
-        }
+        if (nuevasCarreras.length === 0) { alert("Por favor selecciona al menos una carrera para el proyecto."); return; }
         setIsSubmitting(true);
         let finalUrl = '';
 
@@ -134,45 +150,18 @@ export default function Dashboard() {
             finalUrl = protocoloUrl;
         }
 
-        // Si seleccionó todas, se marca como Multidisciplinario, de lo contrario se unen con comas
-        const carreraFinal = nuevasCarreras.length === LISTA_CARRERAS.length
-            ? "Multidisciplinario (Todas las carreras)"
-            : nuevasCarreras.join(', ');
+        const carreraFinal = nuevasCarreras.length === LISTA_CARRERAS.length ? "Multidisciplinario (Todas las carreras)" : nuevasCarreras.join(', ');
 
         const { error } = await supabase.from('proyectos').insert([{
-            titulo: nuevoTitulo,
-            planteamiento_problema: nuevoPlanteamiento,
-            objetivo_general: nuevoObjetivoGeneral,
-            objetivos_especificos: nuevoObjetivosEspecificos,
-            delimitacion: nuevaDelimitacion,
-            estado: 'Activo',
-            investigador_id: user.id,
-            cupos_requeridos: cuposRequeridos,
-            documento_protocolo_url: finalUrl,
-            modalidad: nuevaModalidad,
-            carrera: carreraFinal,
-            descripcion: nuevoPlanteamiento,
-            objetivo: nuevoObjetivoGeneral,
-            pre_requisitos: nuevoObjetivosEspecificos,
-            requisitos: nuevaDelimitacion
+            titulo: nuevoTitulo, planteamiento_problema: nuevoPlanteamiento, objetivo_general: nuevoObjetivoGeneral,
+            objetivos_especificos: nuevoObjetivosEspecificos, delimitacion: nuevaDelimitacion, estado: 'Activo',
+            investigador_id: user.id, cupos_requeridos: cuposRequeridos, documento_protocolo_url: finalUrl,
+            modalidad: nuevaModalidad, carrera: carreraFinal, descripcion: nuevoPlanteamiento, objetivo: nuevoObjetivoGeneral,
+            pre_requisitos: nuevoObjetivosEspecificos, requisitos: nuevaDelimitacion
         }]);
 
-        if (error) {
-            alert(`Error al crear: ${error.message}`);
-            console.error(error);
-        } else {
-            setIsModalOpen(false);
-            setNuevoTitulo('');
-            setNuevoPlanteamiento('');
-            setNuevoObjetivoGeneral('');
-            setNuevoObjetivosEspecificos('');
-            setNuevaDelimitacion('');
-            setCuposRequeridos(1);
-            setNuevaModalidad('Presencial');
-            setNuevasCarreras([LISTA_CARRERAS[0]]);
-            setProtocoloFile(null);
-            setProtocoloUrl('');
-            setRefresh(prev => prev + 1);
+        if (error) { alert(`Error al crear: ${error.message}`); } else {
+            setIsModalOpen(false); setNuevoTitulo(''); setNuevoPlanteamiento(''); setNuevoObjetivoGeneral(''); setNuevoObjetivosEspecificos(''); setNuevaDelimitacion(''); setCuposRequeridos(1); setNuevaModalidad('Presencial'); setNuevasCarreras([LISTA_CARRERAS[0]]); setProtocoloFile(null); setProtocoloUrl(''); setRefresh(prev => prev + 1);
         }
         setIsSubmitting(false);
     };
@@ -180,42 +169,18 @@ export default function Dashboard() {
     const handleEliminar = async (id) => {
         if (!window.confirm("¿Estás seguro de que deseas eliminar este proyecto de forma permanente?")) return;
         const { error } = await supabase.from('proyectos').delete().eq('id', id);
-        if (error) alert("Error al intentar eliminar el proyecto.");
-        else setRefresh(prev => prev + 1);
+        if (error) alert("Error al intentar eliminar el proyecto."); else setRefresh(prev => prev + 1);
     };
 
     const abrirModalEdicion = (proyecto) => {
-        setProyectoEditando(proyecto.id);
-        setEditTitulo(proyecto.titulo);
-        setEditPlanteamiento(proyecto.planteamiento_problema || proyecto.descripcion || '');
-        setEditObjetivoGeneral(proyecto.objetivo_general || proyecto.objetivo || '');
-        setEditObjetivosEspecificos(proyecto.objetivos_especificos || proyecto.pre_requisitos || '');
-        setEditDelimitacion(proyecto.delimitacion || proyecto.requisitos || '');
-        setEditEstado(proyecto.estado === 'Borrador' ? 'Activo' : (proyecto.estado || 'Activo'));
-        setEditCupos(proyecto.cupos_requeridos || 1);
-        setEditModalidad(proyecto.modalidad || 'Presencial');
-
-        // Desglosar las carreras guardadas
-        if (proyecto.carrera?.includes('Multidisciplinario')) {
-            setEditCarreras([...LISTA_CARRERAS]);
-        } else if (proyecto.carrera) {
-            const seleccionadas = proyecto.carrera.split(',').map(c => c.trim());
-            setEditCarreras(seleccionadas);
-        } else {
-            setEditCarreras([]);
-        }
-
-        setEditProtocoloUrl(proyecto.documento_protocolo_url || '');
-        setEditProtocoloFile(null);
-        setIsEditModalOpen(true);
+        setProyectoEditando(proyecto.id); setEditTitulo(proyecto.titulo); setEditPlanteamiento(proyecto.planteamiento_problema || proyecto.descripcion || ''); setEditObjetivoGeneral(proyecto.objetivo_general || proyecto.objetivo || ''); setEditObjetivosEspecificos(proyecto.objetivos_especificos || proyecto.pre_requisitos || ''); setEditDelimitacion(proyecto.delimitacion || proyecto.requisitos || ''); setEditEstado(proyecto.estado === 'Borrador' ? 'Activo' : (proyecto.estado || 'Activo')); setEditCupos(proyecto.cupos_requeridos || 1); setEditModalidad(proyecto.modalidad || 'Presencial');
+        if (proyecto.carrera?.includes('Multidisciplinario')) { setEditCarreras([...LISTA_CARRERAS]); } else if (proyecto.carrera) { setEditCarreras(proyecto.carrera.split(',').map(c => c.trim())); } else { setEditCarreras([]); }
+        setEditProtocoloUrl(proyecto.documento_protocolo_url || ''); setEditProtocoloFile(null); setIsEditModalOpen(true);
     };
 
     const handleActualizarProyecto = async (e) => {
         e.preventDefault();
-        if (editCarreras.length === 0) {
-            alert("Por favor selecciona al menos una carrera para el proyecto.");
-            return;
-        }
+        if (editCarreras.length === 0) { alert("Por favor selecciona al menos una carrera para el proyecto."); return; }
         setIsSubmitting(true);
         let finalUrl = editProtocoloUrl;
 
@@ -228,65 +193,46 @@ export default function Dashboard() {
             finalUrl = urlData.publicUrl;
         }
 
-        const carreraFinal = editCarreras.length === LISTA_CARRERAS.length
-            ? "Multidisciplinario (Todas las carreras)"
-            : editCarreras.join(', ');
+        const carreraFinal = editCarreras.length === LISTA_CARRERAS.length ? "Multidisciplinario (Todas las carreras)" : editCarreras.join(', ');
 
         const { error } = await supabase.from('proyectos').update({
-            titulo: editTitulo,
-            planteamiento_problema: editPlanteamiento,
-            objetivo_general: editObjetivoGeneral,
-            objetivos_especificos: editObjetivosEspecificos,
-            delimitacion: editDelimitacion,
-            estado: editEstado,
-            cupos_requeridos: editCupos,
-            documento_protocolo_url: finalUrl,
-            modalidad: editModalidad,
-            carrera: carreraFinal,
-            descripcion: editPlanteamiento,
-            objetivo: editObjetivoGeneral,
-            pre_requisitos: editObjetivosEspecificos,
-            requisitos: editDelimitacion
+            titulo: editTitulo, planteamiento_problema: editPlanteamiento, objetivo_general: editObjetivoGeneral,
+            objetivos_especificos: editObjetivosEspecificos, delimitacion: editDelimitacion, estado: editEstado,
+            cupos_requeridos: editCupos, documento_protocolo_url: finalUrl, modalidad: editModalidad, carrera: carreraFinal,
+            descripcion: editPlanteamiento, objetivo: editObjetivoGeneral, pre_requisitos: editObjetivosEspecificos, requisitos: editDelimitacion
         }).eq('id', proyectoEditando);
 
-        if (error) alert("Error al guardar los cambios.");
-        else { setIsEditModalOpen(false); setRefresh(prev => prev + 1); }
+        if (error) alert("Error al guardar los cambios."); else { setIsEditModalOpen(false); setRefresh(prev => prev + 1); }
         setIsSubmitting(false);
     };
 
     const abrirModalPostulaciones = async (proyecto) => {
-        setProyectoActualTit(proyecto.titulo);
-        setIsPostulacionesModalOpen(true);
-        setLoadingPostulaciones(true);
-        
-        // ¡ACTUALIZACIÓN! Ahora pedimos semestre, habilidades y enlaces_profesionales
-        const { data, error } = await supabase
-            .from('postulaciones')
-            .select('*, estudiante:usuarios!id_estudiante(nombre_completo, correo_institucional, semestre, habilidades, enlaces_profesionales)')
-            .eq('id_proyecto', proyecto.id)
-            .order('fecha_postulacion', { ascending: false });
-            
-        if (error) console.error("Error cargando postulaciones:", error);
-        else setPostulaciones(data);
+        setProyectoActualTit(proyecto.titulo); setIsPostulacionesModalOpen(true); setLoadingPostulaciones(true);
+        const { data, error } = await supabase.from('postulaciones').select('*, estudiante:usuarios!id_estudiante(nombre_completo, correo_institucional, semestre, habilidades, enlaces_profesionales)').eq('id_proyecto', proyecto.id).order('fecha_postulacion', { ascending: false });
+        if (error) console.error("Error cargando postulaciones:", error); else setPostulaciones(data);
         setLoadingPostulaciones(false);
     };
 
     const cambiarEstadoPostulacion = async (postulacionId, nuevoEstado) => {
         const post = postulaciones.find(p => p.id === postulacionId);
         const { error } = await supabase.from('postulaciones').update({ estado: nuevoEstado }).eq('id', postulacionId);
-        if (error) {
-            alert("Error al actualizar el estado.");
-        } else {
+        if (error) { alert("Error al actualizar el estado."); } else {
             setPostulaciones(postulaciones.map(p => p.id === postulacionId ? { ...p, estado: nuevoEstado } : p));
             setRefresh(prev => prev + 1);
             if (post?.id_estudiante) {
-                await supabase.from('notificaciones').insert([{
-                    usuario_id: post.id_estudiante,
-                    tipo: nuevoEstado.toLowerCase(),
-                    mensaje: `Tu postulación al proyecto "${proyectoActualTit}" ha sido ${nuevoEstado.toLowerCase()}.`
-                }]);
+                await supabase.from('notificaciones').insert([{ usuario_id: post.id_estudiante, tipo: nuevoEstado.toLowerCase(), mensaje: `Tu postulación al proyecto "${proyectoActualTit}" ha sido ${nuevoEstado.toLowerCase()}.` }]);
             }
         }
+    };
+
+    const abrirModalResidente = (estudiante) => {
+        setResidenteSeleccionado(estudiante);
+        setIsResidenteModalOpen(true);
+    };
+
+    const abrirModalAsesor = (asesor) => {
+        setAsesorSeleccionado(asesor);
+        setIsAsesorModalOpen(true);
     };
 
     const totalProyectos = proyectos.length;
@@ -299,109 +245,46 @@ export default function Dashboard() {
         { name: 'En preparación', cantidad: proyectosPreparacion, color: '#64748b' }
     ];
 
-    // Proyectos creados por el docente logueado
     const misProyectosDocente = proyectos.filter(p => p.investigador_id === user?.id);
 
-    // Lógica de filtrado en catálogo general (soporta proyectos con múltiples carreras)
     const proyectosFiltrados = proyectos.filter((proy) => {
         const textoBuscar = busqueda.toLowerCase();
-        const coincideTexto = proy.titulo?.toLowerCase().includes(textoBuscar) ||
-            (proy.planteamiento_problema || proy.descripcion)?.toLowerCase().includes(textoBuscar) ||
-            proy.investigador?.nombre_completo?.toLowerCase().includes(textoBuscar);
-
+        const coincideTexto = proy.titulo?.toLowerCase().includes(textoBuscar) || (proy.planteamiento_problema || proy.descripcion)?.toLowerCase().includes(textoBuscar) || proy.investigador?.nombre_completo?.toLowerCase().includes(textoBuscar);
         const coincideEstado = filtroEstado === 'Todos' || proy.estado?.toLowerCase() === filtroEstado.toLowerCase();
         const coincideModalidad = filtroModalidad === 'Todas' || proy.modalidad === filtroModalidad;
-        const coincideCarrera = filtroCarrera === 'Todas' ||
-            proy.carrera?.includes(filtroCarrera) ||
-            proy.carrera?.includes('Multidisciplinario');
-
+        const coincideCarrera = filtroCarrera === 'Todas' || proy.carrera?.includes(filtroCarrera) || proy.carrera?.includes('Multidisciplinario');
         return coincideTexto && coincideEstado && coincideModalidad && coincideCarrera;
     });
 
     return (
         <div className="min-h-screen bg-slate-50 relative">
 
-            {/* BARRA DE NAVEGACIÓN CON ACCESO AL HOME Y PERFIL */}
+            {/* BARRA DE NAVEGACIÓN */}
             <nav className="bg-white shadow-sm px-6 py-4 flex justify-between items-center border-b border-slate-200 sticky top-0 z-50">
                 <div className="flex items-center gap-4">
-                    <Link to="/" className="text-xl font-bold text-blue-900 hover:opacity-90 transition-opacity">
-                        TecNM <span className="text-blue-600">Gestión Interna</span>
-                    </Link>
-                    <Link
-                        to="/"
-                        className="hidden sm:flex items-center gap-1.5 text-xs font-semibold bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 px-3 py-1.5 rounded-md border border-slate-200 transition-colors"
-                    >
-                        <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
-                        Ir al Inicio
+                    <Link to="/" className="text-xl font-bold text-blue-900 hover:opacity-90 transition-opacity">TecNM <span className="text-blue-600">Gestión Interna</span></Link>
+                    <Link to="/" className="hidden sm:flex items-center gap-1.5 text-xs font-semibold bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 px-3 py-1.5 rounded-md border border-slate-200 transition-colors">
+                        <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg> Ir al Inicio
                     </Link>
                 </div>
                 <div className="flex items-center gap-3">
-
-                    {/* Tarjeta de Perfil Interactiva en Navbar */}
-                    <Link
-                        to="/perfil"
-                        className="hidden md:flex items-center gap-3 bg-white hover:bg-blue-50/80 border border-slate-200 hover:border-blue-300 py-1.5 pl-2 pr-3.5 rounded-full transition-all duration-200 shadow-sm hover:shadow group no-underline"
-                        title="Ir a mi perfil"
-                    >
-                        {user?.avatar_url ? (
-                            <img
-                                src={user.avatar_url}
-                                alt="Perfil"
-                                className="w-8 h-8 rounded-full object-cover border-2 border-white shadow-sm flex-shrink-0"
-                            />
-                        ) : (
-                            <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0 shadow-sm border border-blue-700">
-                                {user?.nombre_completo
-                                    ? user.nombre_completo.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
-                                    : 'US'}
-                            </div>
-                        )}
-
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-800 group-hover:text-blue-700 transition-colors leading-none">
-                                {user?.nombre_completo}
-                            </span>
-                            <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider leading-none">
-                                {user?.rol}
-                            </span>
-                        </div>
-
-                        <svg
-                            className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
-                        </svg>
+                    <Link to="/perfil" className="hidden md:flex items-center gap-3 bg-white hover:bg-blue-50/80 border border-slate-200 hover:border-blue-300 py-1.5 pl-2 pr-3.5 rounded-full transition-all duration-200 shadow-sm hover:shadow group no-underline" title="Ir a mi perfil">
+                        {user?.avatar_url ? ( <img src={user.avatar_url} alt="Perfil" className="w-8 h-8 rounded-full object-cover border-2 border-white shadow-sm flex-shrink-0" /> ) : ( <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0 shadow-sm border border-blue-700">{user?.nombre_completo ? user.nombre_completo.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'US'}</div> )}
+                        <div className="flex items-center gap-2"><span className="text-xs font-bold text-slate-800 group-hover:text-blue-700 transition-colors leading-none">{user?.nombre_completo}</span><span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider leading-none">{user?.rol}</span></div>
+                        <svg className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" /></svg>
                     </Link>
-
                     <NotificacionesBell />
-
-                    <Link to="/perfil" className="sm:hidden text-xs bg-blue-50 text-blue-700 px-3 py-2 rounded-lg font-semibold hover:bg-blue-100 transition-colors">
-                        Perfil
-                    </Link>
-                    <Link to="/" className="sm:hidden text-xs bg-slate-100 text-slate-700 px-3 py-2 rounded-lg font-semibold hover:bg-slate-200 transition-colors">
-                        Inicio
-                    </Link>
-
-                    <button onClick={handleLogout} className="text-sm bg-slate-100 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 font-semibold transition-colors">
-                        Cerrar Sesión
-                    </button>
+                    <Link to="/perfil" className="sm:hidden text-xs bg-blue-50 text-blue-700 px-3 py-2 rounded-lg font-semibold hover:bg-blue-100 transition-colors">Perfil</Link>
+                    <Link to="/" className="sm:hidden text-xs bg-slate-100 text-slate-700 px-3 py-2 rounded-lg font-semibold hover:bg-slate-200 transition-colors">Inicio</Link>
+                    <button onClick={handleLogout} className="text-sm bg-slate-100 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 font-semibold transition-colors">Cerrar Sesión</button>
                 </div>
             </nav>
 
             <main className="p-6 md:p-8 max-w-7xl mx-auto relative z-10">
-
                 <div className="flex justify-between items-center mb-8">
-                    <div>
-                        <h2 className="text-2xl font-bold text-slate-800">Dashboard Analítico</h2>
-                        <p className="text-slate-500 text-sm mt-1">Métricas operativas del periodo 2026</p>
-                    </div>
+                    <div><h2 className="text-2xl font-bold text-slate-800">Dashboard Analítico</h2><p className="text-slate-500 text-sm mt-1">Métricas operativas del periodo 2026</p></div>
                     {(user?.rol === 'Investigador' || user?.rol === 'Administrador') && (
-                        <button onClick={() => setIsModalOpen(true)} className="bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 font-semibold transition-colors shadow-sm flex items-center gap-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg> Nuevo Proyecto
-                        </button>
+                        <button onClick={() => setIsModalOpen(true)} className="bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 font-semibold transition-colors shadow-sm flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg> Nuevo Proyecto</button>
                     )}
                 </div>
 
@@ -427,114 +310,99 @@ export default function Dashboard() {
                 {(user?.rol === 'Investigador' || user?.rol === 'Administrador') && (
                     <div className="mb-12">
                         <div className="flex justify-between items-center mb-6 border-b border-slate-200 pb-2">
-                            <div>
-                                <h3 className="text-lg font-bold text-slate-800">Mis Proyectos Asignados</h3>
-                                <p className="text-xs text-slate-500">Propuestas bajo tu asesoría y autoría técnica</p>
-                            </div>
-                            <span className="text-xs font-semibold bg-blue-100 text-blue-800 px-3 py-1 rounded-full">
-                                {misProyectosDocente.length} {misProyectosDocente.length === 1 ? 'proyecto' : 'proyectos'}
-                            </span>
+                            <div><h3 className="text-lg font-bold text-slate-800">Mis Proyectos Asignados</h3><p className="text-xs text-slate-500">Propuestas bajo tu asesoría y autoría técnica</p></div>
+                            <span className="text-xs font-semibold bg-blue-100 text-blue-800 px-3 py-1 rounded-full">{misProyectosDocente.length} {misProyectosDocente.length === 1 ? 'proyecto' : 'proyectos'}</span>
                         </div>
 
                         {misProyectosDocente.length === 0 ? (
-                            <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 text-center text-slate-500">
-                                Aún no has creado ningún proyecto. Haz clic en "Nuevo Proyecto" para publicar una propuesta.
-                            </div>
+                            <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 text-center text-slate-500">Aún no has creado ningún proyecto. Haz clic en "Nuevo Proyecto" para publicar una propuesta.</div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {misProyectosDocente.map((proyecto) => {
-                                    const aceptados = proyecto.postulaciones ? proyecto.postulaciones.filter(p => p.estado === 'Aceptado').length : 0;
-                                    const pendientes = proyecto.postulaciones ? proyecto.postulaciones.filter(p => p.estado === 'Pendiente').length : 0;
+                                    const postulacionesArray = proyecto.postulaciones || [];
+                                    const aceptados = postulacionesArray.filter(p => p.estado === 'Aceptado').length;
+                                    const pendientes = postulacionesArray.filter(p => p.estado === 'Pendiente').length;
+                                    const residentesActivos = postulacionesArray.filter(p => p.estado === 'Aceptado'); // <- Residentes aceptados
                                     const cuposTotales = proyecto.cupos_requeridos || 1;
                                     const estaLleno = aceptados >= cuposTotales;
                                     const porcentaje = Math.min(100, Math.round((aceptados / cuposTotales) * 100));
 
                                     return (
-                                        <div key={proyecto.id} className="bg-white p-6 rounded-xl shadow-sm border-2 border-blue-200 hover:shadow-md transition-all flex flex-col items-center text-center h-full relative">
-
-                                            <div className="flex flex-col items-center mb-2 gap-2 w-full">
-                                                <span className={`text-xs px-2.5 py-1 rounded-full font-medium border flex-shrink-0 ${proyecto.estado?.toLowerCase() === 'activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                                        proyecto.estado?.toLowerCase() === 'finalizado' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                                                            'bg-slate-100 text-slate-700 border-slate-200'
-                                                    }`}>
+                                        <div key={proyecto.id} className="bg-white p-6 rounded-xl shadow-sm border-2 border-blue-200 hover:shadow-md transition-all flex flex-col h-full relative">
+                                            
+                                            {/* Cabecera del Proyecto */}
+                                            <div className="flex flex-col items-center mb-2 gap-2 w-full text-center">
+                                                <span className={`text-xs px-2.5 py-1 rounded-full font-medium border flex-shrink-0 ${proyecto.estado?.toLowerCase() === 'activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : proyecto.estado?.toLowerCase() === 'finalizado' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
                                                     {proyecto.estado || 'Activo'}
                                                 </span>
                                                 <h4 className="font-extrabold text-lg text-slate-800 leading-tight">{proyecto.titulo}</h4>
                                             </div>
-
-                                            {/* LÍNEA DIVISORIA */}
                                             <hr className="border-slate-100 my-3 w-full" />
-
-                                            {/* INFORMACIÓN EN TEXTO CON JERARQUÍA DE COLOR */}
-                                            <div className="flex flex-col items-center justify-center gap-1.5 my-1 text-sm w-full">
-                                                <p className="leading-snug">
-                                                    <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md mr-1.5 text-xs uppercase tracking-wide">
-                                                        Carrera:
-                                                    </span>
-                                                    <span className="font-semibold text-slate-800">{proyecto.carrera || 'Multidisciplinario'}</span>
-                                                </p>
-                                                <p className="leading-snug">
-                                                    <span className="font-bold text-purple-700 bg-purple-50 border border-purple-100 px-2 py-0.5 rounded-md mr-1.5 text-xs uppercase tracking-wide">
-                                                        Modalidad:
-                                                    </span>
-                                                    <span className="font-semibold text-slate-800">{proyecto.modalidad || 'Presencial'}</span>
-                                                </p>
+                                            
+                                            {/* Info Básica */}
+                                            <div className="flex flex-col items-center justify-center gap-1.5 my-1 text-sm w-full text-center">
+                                                <p className="leading-snug"><span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md mr-1.5 text-xs uppercase tracking-wide">Carrera:</span><span className="font-semibold text-slate-800">{proyecto.carrera || 'Multidisciplinario'}</span></p>
+                                                <p className="leading-snug"><span className="font-bold text-purple-700 bg-purple-50 border border-purple-100 px-2 py-0.5 rounded-md mr-1.5 text-xs uppercase tracking-wide">Modalidad:</span><span className="font-semibold text-slate-800">{proyecto.modalidad || 'Presencial'}</span></p>
                                             </div>
-
-                                            {/* LÍNEA DIVISORIA */}
                                             <hr className="border-slate-100 my-3 w-full" />
-
-                                            <p className="text-slate-600 text-sm mb-4 line-clamp-3 flex-grow">
+                                            
+                                            <p className="text-slate-600 text-sm mb-4 line-clamp-3 text-center">
                                                 {proyecto.planteamiento_problema || proyecto.descripcion}
                                             </p>
-
-                                            <div className="flex flex-col items-center text-sm mb-4 w-full">
-                                                <p>
-                                                    <span className="font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-md mr-1.5 text-xs uppercase tracking-wide">
-                                                        Investigador:
-                                                    </span>
-                                                    <span className="font-bold text-slate-800 uppercase">{proyecto.investigador?.nombre_completo || 'No asignado'}</span>
-                                                </p>
+                                            
+                                            <div className="flex flex-col items-center text-sm mb-4 w-full text-center">
+                                                <p><span className="font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-md mr-1.5 text-xs uppercase tracking-wide">Investigador:</span><span className="font-bold text-slate-800 uppercase">{proyecto.investigador?.nombre_completo || 'No asignado'}</span></p>
                                             </div>
 
-                                            <div className="w-full bg-slate-50 p-2.5 rounded-lg border border-slate-100 mb-4 mt-auto">
+                                            {/* BARRA DE PROGRESO DE CUPOS */}
+                                            <div className="w-full bg-slate-50 p-2.5 rounded-lg border border-slate-100 mt-auto">
                                                 <div className="flex justify-between items-center text-xs mb-1.5">
                                                     <span className="font-medium text-slate-600">Cupos de Residentes:</span>
-                                                    <span className={`font-bold ${estaLleno ? 'text-red-600' : 'text-blue-600'}`}>
-                                                        {aceptados} / {cuposTotales} {estaLleno ? '(Lleno)' : 'ocupados'}
-                                                    </span>
+                                                    <span className={`font-bold ${estaLleno ? 'text-red-600' : 'text-blue-600'}`}>{aceptados} / {cuposTotales} {estaLleno ? '(Lleno)' : 'ocupados'}</span>
                                                 </div>
                                                 <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                                                    <div
-                                                        className={`h-full transition-all duration-300 ${estaLleno ? 'bg-red-500' : 'bg-blue-600'}`}
-                                                        style={{ width: `${porcentaje}%` }}
-                                                    />
+                                                    <div className={`h-full transition-all duration-300 ${estaLleno ? 'bg-red-500' : 'bg-blue-600'}`} style={{ width: `${porcentaje}%` }} />
                                                 </div>
                                             </div>
 
-                                            <div className="flex justify-center items-center border-t border-slate-100 pt-3 mt-auto gap-2 w-full">
-                                                <button
-                                                    onClick={() => abrirModalPostulaciones(proyecto)}
-                                                    className="relative text-xs font-bold bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5"
-                                                >
-                                                    Solicitudes
-                                                    {pendientes > 0 && (
-                                                        <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold">
-                                                            {pendientes}
-                                                        </span>
-                                                    )}
-                                                </button>
+                                            {/* BLOQUE "EQUIPO DE TRABAJO" (SÓLO SI HAY RESIDENTES ACEPTADOS) */}
+                                            {residentesActivos.length > 0 && (
+                                                <div className="w-full bg-indigo-50 border border-indigo-100 p-3 rounded-lg mt-3 text-left">
+                                                    <p className="text-[10px] font-bold text-indigo-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                                                        Equipo de Trabajo ({residentesActivos.length})
+                                                    </p>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {residentesActivos.map(res => (
+                                                            <button 
+                                                                key={res.id} 
+                                                                onClick={() => abrirModalResidente(res.estudiante)} 
+                                                                className="flex items-center gap-2 bg-white border border-indigo-200 pl-1 pr-3 py-1 rounded-full hover:bg-indigo-100 transition-colors shadow-sm w-full sm:w-auto overflow-hidden group"
+                                                                title="Ver expediente del residente"
+                                                            >
+                                                                {res.estudiante?.avatar_url ? (
+                                                                    <img src={res.estudiante.avatar_url} alt="Avatar" className="w-6 h-6 rounded-full object-cover border border-slate-200" />
+                                                                ) : (
+                                                                    <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold text-[9px] flex items-center justify-center flex-shrink-0">
+                                                                        {res.estudiante?.nombre_completo ? res.estudiante.nombre_completo.substring(0,2).toUpperCase() : 'RS'}
+                                                                    </div>
+                                                                )}
+                                                                <span className="text-xs font-semibold text-slate-700 truncate group-hover:text-indigo-800">{res.estudiante?.nombre_completo}</span>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
 
+                                            {/* BOTONERA INFERIOR */}
+                                            <div className="flex justify-center items-center border-t border-slate-100 pt-3 mt-4 gap-2 w-full">
+                                                <button onClick={() => abrirModalPostulaciones(proyecto)} className="relative text-xs font-bold bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5">
+                                                    Solicitudes {pendientes > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold">{pendientes}</span>}
+                                                </button>
                                                 <div className="flex items-center justify-center gap-2">
-                                                    <Link to={`/proyecto/${proyecto.id}`} className="text-xs font-semibold text-slate-600 hover:text-blue-600 transition-colors">
-                                                        Espacio
-                                                    </Link>
-                                                    <button onClick={() => abrirModalEdicion(proyecto)} className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors">
-                                                        Editar
-                                                    </button>
-                                                    <button onClick={() => handleEliminar(proyecto.id)} className="text-xs font-semibold text-red-500 hover:text-red-700 transition-colors">
-                                                        Borrar
-                                                    </button>
+                                                    <Link to={`/proyecto/${proyecto.id}`} className="text-xs font-semibold text-slate-600 hover:text-blue-600 transition-colors">Espacio</Link>
+                                                    <button onClick={() => abrirModalEdicion(proyecto)} className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors">Editar</button>
+                                                    <button onClick={() => handleEliminar(proyecto.id)} className="text-xs font-semibold text-red-500 hover:text-red-700 transition-colors">Borrar</button>
                                                 </div>
                                             </div>
                                         </div>
@@ -559,10 +427,29 @@ export default function Dashboard() {
                                             <h3 className="font-bold text-lg text-slate-800 leading-tight">{post.proyecto?.titulo || 'Proyecto Eliminado'}</h3>
                                             <span className={`text-xs px-3 py-1 rounded-full font-bold border flex-shrink-0 ${post.estado === 'Aceptado' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : post.estado === 'Rechazado' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{post.estado}</span>
                                         </div>
-                                        <p className="text-sm text-slate-500 mb-6 flex-grow line-clamp-2">{post.proyecto?.planteamiento_problema || post.proyecto?.descripcion}</p>
-                                        <div className="flex justify-between items-center border-t border-slate-100 pt-4 mt-auto">
-                                            <div className="text-xs text-slate-500">Investigador: <span className="font-semibold text-slate-700 uppercase">{post.proyecto?.investigador?.nombre_completo}</span></div>
-                                            <Link to={`/proyecto/${post.proyecto?.id}`} className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors bg-blue-50 px-3 py-1.5 rounded-md">Ver Detalles</Link>
+                                        <p className="text-sm text-slate-500 mb-4 flex-grow line-clamp-2">{post.proyecto?.planteamiento_problema || post.proyecto?.descripcion}</p>
+                                        
+                                        <div className="flex flex-col gap-2 w-full mt-auto border-t border-slate-100 pt-4">
+                                            <div className="flex justify-between items-center w-full">
+                                                <button 
+                                                    onClick={() => abrirModalAsesor(post.proyecto?.investigador)}
+                                                    className="flex items-center gap-2 text-left group hover:bg-slate-50 p-1.5 rounded-lg transition-colors -ml-1.5"
+                                                    title="Ver perfil del investigador"
+                                                >
+                                                    {post.proyecto?.investigador?.avatar_url ? (
+                                                        <img src={post.proyecto.investigador.avatar_url} className="w-9 h-9 rounded-full object-cover border border-slate-200 shadow-sm" alt="Asesor" />
+                                                    ) : (
+                                                        <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 font-bold text-sm flex items-center justify-center shadow-sm">
+                                                            {post.proyecto?.investigador?.nombre_completo?.substring(0, 2).toUpperCase() || 'IN'}
+                                                        </div>
+                                                    )}
+                                                    <div>
+                                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider leading-none mb-1">Asesor Técnico</p>
+                                                        <p className="text-xs font-bold text-slate-700 group-hover:text-blue-600 transition-colors uppercase leading-none">{post.proyecto?.investigador?.nombre_completo}</p>
+                                                    </div>
+                                                </button>
+                                                <Link to={`/proyecto/${post.proyecto?.id}`} className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors bg-blue-50 px-3 py-1.5 rounded-md flex-shrink-0">Ver Proyecto</Link>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
@@ -573,14 +460,11 @@ export default function Dashboard() {
 
                 {/* PANEL DE GESTIÓN INTELIGENTE (ADMINISTRADOR E INVESTIGADOR) */}
                 {(user?.rol === 'Administrador' || user?.rol === 'Investigador') && (
-                    <AdminPanel
-                        onRefreshProyectos={() => setRefresh(prev => prev + 1)}
-                        user={user}
-                    />
+                    <AdminPanel onRefreshProyectos={() => setRefresh(prev => prev + 1)} user={user} />
                 )}
 
                 {/* BARRA DE BÚSQUEDA Y FILTRADO */}
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-4 mb-6">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-4 mb-6 mt-6">
                     <div className="relative w-full">
                         <input type="text" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar por proyecto, planteamiento o docente..." className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" />
                         <svg className="w-5 h-5 text-slate-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
@@ -590,12 +474,10 @@ export default function Dashboard() {
                         <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className="bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
                             <option value="Todos">Estado: Todos</option><option value="Activo">Activos</option><option value="En preparación">En preparación</option><option value="Finalizado">Finalizado</option>
                         </select>
-
                         <select value={filtroModalidad} onChange={(e) => setFiltroModalidad(e.target.value)} className="bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
                             <option value="Todas">Modalidad: Todas</option>
                             {OPCIONES_MODALIDAD.map(m => <option key={m} value={m}>{m}</option>)}
                         </select>
-
                         <select value={filtroCarrera} onChange={(e) => setFiltroCarrera(e.target.value)} className="bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer max-w-[200px] truncate">
                             <option value="Todas">Carrera: Todas</option>
                             {LISTA_CARRERAS.map(c => <option key={c} value={c}>{c}</option>)}
@@ -627,74 +509,34 @@ export default function Dashboard() {
 
                             return (
                                 <div key={proyecto.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all flex flex-col items-center text-center h-full">
-
                                     <div className="flex flex-col items-center mb-2 gap-2 w-full">
-                                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium border flex-shrink-0 ${proyecto.estado?.toLowerCase() === 'activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                                proyecto.estado?.toLowerCase() === 'finalizado' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                                                    'bg-slate-100 text-slate-700 border-slate-200'
-                                            }`}>
+                                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium border flex-shrink-0 ${proyecto.estado?.toLowerCase() === 'activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : proyecto.estado?.toLowerCase() === 'finalizado' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
                                             {proyecto.estado || 'Activo'}
                                         </span>
                                         <h3 className="font-extrabold text-lg text-slate-800 leading-tight">{proyecto.titulo}</h3>
                                         {estaLleno && (<span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-red-100 text-red-700 border border-red-200">Lleno</span>)}
                                     </div>
-
-                                    {/* LÍNEA DIVISORIA */}
                                     <hr className="border-slate-100 my-3 w-full" />
-
-                                    {/* INFORMACIÓN EN TEXTO CON JERARQUÍA DE COLOR */}
                                     <div className="flex flex-col items-center justify-center gap-1.5 my-1 text-sm w-full">
-                                        <p className="leading-snug">
-                                            <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md mr-1.5 text-xs uppercase tracking-wide">
-                                                Carrera:
-                                            </span>
-                                            <span className="font-semibold text-slate-800">{proyecto.carrera || 'Multidisciplinario'}</span>
-                                        </p>
-                                        <p className="leading-snug">
-                                            <span className="font-bold text-purple-700 bg-purple-50 border border-purple-100 px-2 py-0.5 rounded-md mr-1.5 text-xs uppercase tracking-wide">
-                                                Modalidad:
-                                            </span>
-                                            <span className="font-semibold text-slate-800">{proyecto.modalidad || 'Presencial'}</span>
-                                        </p>
+                                        <p className="leading-snug"><span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md mr-1.5 text-xs uppercase tracking-wide">Carrera:</span><span className="font-semibold text-slate-800">{proyecto.carrera || 'Multidisciplinario'}</span></p>
+                                        <p className="leading-snug"><span className="font-bold text-purple-700 bg-purple-50 border border-purple-100 px-2 py-0.5 rounded-md mr-1.5 text-xs uppercase tracking-wide">Modalidad:</span><span className="font-semibold text-slate-800">{proyecto.modalidad || 'Presencial'}</span></p>
                                     </div>
-
-                                    {/* LÍNEA DIVISORIA */}
                                     <hr className="border-slate-100 my-3 w-full" />
-
-                                    <p className="text-slate-600 text-sm mb-4 line-clamp-3 flex-grow">
-                                        {proyecto.planteamiento_problema || proyecto.descripcion}
-                                    </p>
-
+                                    <p className="text-slate-600 text-sm mb-4 line-clamp-3 flex-grow">{proyecto.planteamiento_problema || proyecto.descripcion}</p>
                                     <div className="flex flex-col items-center text-sm mb-4 w-full">
-                                        <p>
-                                            <span className="font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-md mr-1.5 text-xs uppercase tracking-wide">
-                                                Investigador:
-                                            </span>
-                                            <span className="font-bold text-slate-800 uppercase">{proyecto.investigador?.nombre_completo || 'No asignado'}</span>
-                                        </p>
+                                        <p><span className="font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-md mr-1.5 text-xs uppercase tracking-wide">Investigador:</span><span className="font-bold text-slate-800 uppercase">{proyecto.investigador?.nombre_completo || 'No asignado'}</span></p>
                                     </div>
-
                                     <div className="w-full bg-slate-50 p-2.5 rounded-lg border border-slate-100 mb-4 mt-auto">
                                         <div className="flex justify-between items-center text-xs mb-1.5">
                                             <span className="font-medium text-slate-600">Cupos de Residentes:</span>
-                                            <span className={`font-bold ${estaLleno ? 'text-red-600' : 'text-blue-600'}`}>
-                                                {aceptados} / {cuposTotales} {estaLleno ? '(Sin cupo)' : 'ocupados'}
-                                            </span>
+                                            <span className={`font-bold ${estaLleno ? 'text-red-600' : 'text-blue-600'}`}>{aceptados} / {cuposTotales} {estaLleno ? '(Sin cupo)' : 'ocupados'}</span>
                                         </div>
                                         <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
                                             <div className={`h-full transition-all duration-300 ${estaLleno ? 'bg-red-500' : 'bg-blue-600'}`} style={{ width: `${porcentaje}%` }} />
                                         </div>
                                     </div>
-
                                     <div className="flex justify-center items-center border-t border-slate-100 pt-4 w-full gap-2">
                                         <Link to={`/proyecto/${proyecto.id}`} className="text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors">Ver Detalle</Link>
-                                        {(user?.id === proyecto.investigador_id || user?.rol === 'Administrador') && (
-                                            <>
-                                                <button onClick={() => abrirModalPostulaciones(proyecto)} className="text-sm font-semibold text-purple-600 hover:text-purple-800 transition-colors">Solicitudes</button>
-                                                <button onClick={() => abrirModalEdicion(proyecto)} className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors">Editar</button>
-                                                <button onClick={() => handleEliminar(proyecto.id)} className="text-sm font-semibold text-red-500 hover:text-red-700 transition-colors">Borrar</button>
-                                            </>
-                                        )}
                                     </div>
                                 </div>
                             );
@@ -729,7 +571,6 @@ export default function Dashboard() {
                                                         <p className="font-bold text-slate-800 uppercase text-lg">{postulacion.estudiante?.nombre_completo || 'Alumno Desconocido'}</p>
                                                         <p className="text-sm text-blue-600 font-medium mb-4">{postulacion.estudiante?.correo_institucional}</p>
                                                         
-                                                        {/* TARJETA DE PERFIL TÉCNICO DEL ESTUDIANTE */}
                                                         <div className="grid grid-cols-2 gap-3 mb-4 bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
                                                             <div className="text-xs">
                                                                 <span className="font-bold text-slate-500 uppercase block mb-1">Semestre:</span>
@@ -740,18 +581,14 @@ export default function Dashboard() {
                                                             <div className="text-xs">
                                                                 <span className="font-bold text-slate-500 uppercase block mb-1">Enlaces:</span>
                                                                 {postulacion.estudiante?.enlaces_profesionales ? (
-                                                                    <a href={postulacion.estudiante.enlaces_profesionales} target="_blank" rel="noreferrer" className="font-semibold text-blue-600 hover:text-blue-800 hover:underline truncate block">
-                                                                        Ver Portafolio / GitHub ↗
-                                                                    </a>
+                                                                    <a href={postulacion.estudiante.enlaces_profesionales} target="_blank" rel="noreferrer" className="font-semibold text-blue-600 hover:text-blue-800 hover:underline truncate block">Ver Portafolio / GitHub ↗</a>
                                                                 ) : (
                                                                     <span className="text-slate-400 italic">Sin enlaces</span>
                                                                 )}
                                                             </div>
                                                             <div className="text-xs col-span-2 mt-1">
                                                                 <span className="font-bold text-slate-500 uppercase block mb-1">Habilidades Técnicas:</span>
-                                                                <p className="font-medium text-slate-700 whitespace-pre-wrap">
-                                                                    {postulacion.estudiante?.habilidades || 'No registradas'}
-                                                                </p>
+                                                                <p className="font-medium text-slate-700 whitespace-pre-wrap">{postulacion.estudiante?.habilidades || 'No registradas'}</p>
                                                             </div>
                                                         </div>
 
@@ -770,19 +607,75 @@ export default function Dashboard() {
                                                         </div>
                                                     </div>
                                                     
-                                                    {/* BOTONES DE ACCIÓN */}
                                                     <div className="flex md:flex-col gap-2 w-full md:w-auto mt-2 md:mt-0 flex-shrink-0">
-                                                        {postulacion.estado !== 'Aceptado' && (
-                                                            <button onClick={() => cambiarEstadoPostulacion(postulacion.id, 'Aceptado')} className="flex-1 md:flex-none bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-6 py-2 rounded-md text-sm font-bold transition-colors shadow-sm">Aceptar</button>
-                                                        )}
-                                                        {postulacion.estado !== 'Rechazado' && (
-                                                            <button onClick={() => cambiarEstadoPostulacion(postulacion.id, 'Rechazado')} className="flex-1 md:flex-none bg-red-100 text-red-700 hover:bg-red-200 px-6 py-2 rounded-md text-sm font-bold transition-colors shadow-sm">Rechazar</button>
-                                                        )}
+                                                        {postulacion.estado !== 'Aceptado' && (<button onClick={() => cambiarEstadoPostulacion(postulacion.id, 'Aceptado')} className="flex-1 md:flex-none bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-6 py-2 rounded-md text-sm font-bold transition-colors shadow-sm">Aceptar</button>)}
+                                                        {postulacion.estado !== 'Rechazado' && (<button onClick={() => cambiarEstadoPostulacion(postulacion.id, 'Rechazado')} className="flex-1 md:flex-none bg-red-100 text-red-700 hover:bg-red-200 px-6 py-2 rounded-md text-sm font-bold transition-colors shadow-sm">Rechazar</button>)}
                                                     </div>
                                                 </div>
                                             ))}
                                         </div>
                                     )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* NUEVO MODAL: EXPEDIENTE DE RESIDENTE ACTIVO */}
+                    {isResidenteModalOpen && residenteSeleccionado && (
+                        <div className="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
+                                <div className="bg-indigo-700 px-6 py-4 flex justify-between items-center relative overflow-hidden">
+                                    <div className="absolute -right-4 -top-4 w-24 h-24 bg-white opacity-10 rounded-full blur-xl"></div>
+                                    <h3 className="text-lg font-bold text-white relative z-10 flex items-center gap-2">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" /></svg>
+                                        Expediente del Residente
+                                    </h3>
+                                    <button onClick={() => setIsResidenteModalOpen(false)} className="text-indigo-200 hover:text-white font-bold text-xl relative z-10">✕</button>
+                                </div>
+                                <div className="p-6 bg-slate-50">
+                                    <div className="flex flex-col items-center mb-6 text-center">
+                                        {residenteSeleccionado.avatar_url ? (
+                                            <img src={residenteSeleccionado.avatar_url} className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-sm mb-3" alt="Avatar" />
+                                        ) : (
+                                            <div className="w-20 h-20 rounded-full bg-indigo-100 border-4 border-white shadow-sm flex items-center justify-center text-indigo-700 font-bold text-2xl mb-3">
+                                                {residenteSeleccionado.nombre_completo?.substring(0,2).toUpperCase()}
+                                            </div>
+                                        )}
+                                        <h4 className="text-xl font-bold text-slate-800 leading-tight">{residenteSeleccionado.nombre_completo}</h4>
+                                        <p className="text-sm font-semibold text-slate-500 mt-1">{residenteSeleccionado.carrera || 'Ingeniería en Sistemas Computacionales'}</p>
+                                        <p className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full mt-2 border border-indigo-100">Matrícula: {residenteSeleccionado.numero_control || 'N/A'}</p>
+                                    </div>
+
+                                    <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 space-y-4">
+                                        <div>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Contacto Directo</p>
+                                            <p className="text-sm font-medium text-slate-700 break-all mb-1">📧 {residenteSeleccionado.correo_institucional}</p>
+                                            {residenteSeleccionado.telefono ? (
+                                                <a href={`https://wa.me/52${residenteSeleccionado.telefono.replace(/\D/g,'')}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md transition-colors mt-1">
+                                                    WhatsApp
+                                                </a>
+                                            ) : (
+                                                <p className="text-sm font-medium text-slate-400">📱 Sin teléfono registrado</p>
+                                            )}
+                                        </div>
+
+                                        <div className="pt-3 border-t border-slate-100">
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Habilidades Técnicas</p>
+                                            <p className="text-sm text-slate-700 whitespace-pre-wrap">{residenteSeleccionado.habilidades || 'No especificadas.'}</p>
+                                        </div>
+
+                                        {residenteSeleccionado.enlaces_profesionales && (
+                                            <div className="pt-3 border-t border-slate-100">
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Portafolio / Enlaces</p>
+                                                <a href={residenteSeleccionado.enlaces_profesionales} target="_blank" rel="noreferrer" className="text-sm font-semibold text-blue-600 hover:underline break-all">
+                                                    {residenteSeleccionado.enlaces_profesionales}
+                                                </a>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="mt-6 flex justify-end">
+                                        <button onClick={() => setIsResidenteModalOpen(false)} className="bg-slate-800 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-slate-900 transition-colors shadow-sm w-full">Cerrar Expediente</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -796,84 +689,36 @@ export default function Dashboard() {
                                     <h3 className="text-lg font-bold text-slate-800">Crear Nuevo Proyecto</h3>
                                 </div>
                                 <form onSubmit={handleCrearProyecto} className="p-6 space-y-4 overflow-y-auto">
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Título</label>
-                                        <input type="text" required value={nuevoTitulo} onChange={(e) => setNuevoTitulo(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Planteamiento del problema</label>
-                                        <textarea required rows="3" value={nuevoPlanteamiento} onChange={(e) => setNuevoPlanteamiento(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Objetivo general</label>
-                                        <textarea required rows="2" value={nuevoObjetivoGeneral} onChange={(e) => setNuevoObjetivoGeneral(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Objetivos Específicos</label>
-                                        <textarea required rows="2" value={nuevoObjetivosEspecificos} onChange={(e) => setNuevoObjetivosEspecificos(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Hipótesis</label>
-                                        <textarea required rows="2" value={nuevaDelimitacion} onChange={(e) => setNuevaDelimitacion(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
-                                    </div>
-
+                                    <div><label className="block text-sm font-medium text-slate-700 mb-1">Título</label><input type="text" required value={nuevoTitulo} onChange={(e) => setNuevoTitulo(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" /></div>
+                                    <div><label className="block text-sm font-medium text-slate-700 mb-1">Planteamiento del problema</label><textarea required rows="3" value={nuevoPlanteamiento} onChange={(e) => setNuevoPlanteamiento(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" /></div>
+                                    <div><label className="block text-sm font-medium text-slate-700 mb-1">Objetivo general</label><textarea required rows="2" value={nuevoObjetivoGeneral} onChange={(e) => setNuevoObjetivoGeneral(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" /></div>
+                                    <div><label className="block text-sm font-medium text-slate-700 mb-1">Objetivos Específicos</label><textarea required rows="2" value={nuevoObjetivosEspecificos} onChange={(e) => setNuevoObjetivosEspecificos(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" /></div>
+                                    <div><label className="block text-sm font-medium text-slate-700 mb-1">Hipótesis</label><textarea required rows="2" value={nuevaDelimitacion} onChange={(e) => setNuevaDelimitacion(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" /></div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-1">Cupos Requeridos</label>
-                                            <input type="number" min="1" max="10" required value={cuposRequeridos} onChange={(e) => setCuposRequeridos(parseInt(e.target.value))} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-1">Modalidad</label>
-                                            <select value={nuevaModalidad} onChange={(e) => setNuevaModalidad(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-                                                {OPCIONES_MODALIDAD.map(m => <option key={m} value={m}>{m}</option>)}
-                                            </select>
-                                        </div>
+                                        <div><label className="block text-sm font-medium text-slate-700 mb-1">Cupos Requeridos</label><input type="number" min="1" max="10" required value={cuposRequeridos} onChange={(e) => setCuposRequeridos(parseInt(e.target.value))} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" /></div>
+                                        <div><label className="block text-sm font-medium text-slate-700 mb-1">Modalidad</label><select value={nuevaModalidad} onChange={(e) => setNuevaModalidad(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">{OPCIONES_MODALIDAD.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
                                     </div>
-
-                                    {/* SELECCIÓN MÚLTIPLE DE CARRERAS CON CHECKBOXES */}
                                     <div>
                                         <div className="flex justify-between items-center mb-1.5">
                                             <label className="block text-sm font-semibold text-slate-700">Carreras Destino</label>
-                                            <button
-                                                type="button"
-                                                onClick={() => setNuevasCarreras(nuevasCarreras.length === LISTA_CARRERAS.length ? [] : [...LISTA_CARRERAS])}
-                                                className="text-xs text-blue-600 hover:underline font-medium"
-                                            >
-                                                {nuevasCarreras.length === LISTA_CARRERAS.length ? 'Deseleccionar todas' : 'Seleccionar todas (Multidisciplinario)'}
-                                            </button>
+                                            <button type="button" onClick={() => setNuevasCarreras(nuevasCarreras.length === LISTA_CARRERAS.length ? [] : [...LISTA_CARRERAS])} className="text-xs text-blue-600 hover:underline font-medium">{nuevasCarreras.length === LISTA_CARRERAS.length ? 'Deseleccionar todas' : 'Seleccionar todas (Multidisciplinario)'}</button>
                                         </div>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
                                             {LISTA_CARRERAS.map(c => (
                                                 <label key={c} className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer hover:text-blue-700 select-none">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={nuevasCarreras.includes(c)}
-                                                        onChange={() => handleToggleCarreraCrear(c)}
-                                                        className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
-                                                    />
-                                                    <span>{c}</span>
+                                                    <input type="checkbox" checked={nuevasCarreras.includes(c)} onChange={() => handleToggleCarreraCrear(c)} className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer" /><span>{c}</span>
                                                 </label>
                                             ))}
                                         </div>
                                     </div>
-
                                     <div className="pt-3 border-t border-slate-100">
                                         <label className="block text-sm font-bold text-slate-700 mb-2">Protocolo Oficial / Convocatoria (Opcional)</label>
                                         <div className="space-y-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Subir Archivo PDF</label>
-                                                <input type="file" accept=".pdf" onChange={(e) => { setProtocoloFile(e.target.files[0]); setProtocoloUrl(''); }} className="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <hr className="flex-grow border-slate-200" /><span className="text-xs text-slate-400 font-medium">O</span><hr className="flex-grow border-slate-200" />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Enlace Externo (Google Drive)</label>
-                                                <input type="url" value={protocoloUrl} onChange={(e) => { setProtocoloUrl(e.target.value); setProtocoloFile(null); }} placeholder="https://drive.google.com/..." className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none" disabled={!!protocoloFile} />
-                                            </div>
+                                            <div><label className="block text-xs font-medium text-slate-500 mb-1">Subir Archivo PDF</label><input type="file" accept=".pdf" onChange={(e) => { setProtocoloFile(e.target.files[0]); setProtocoloUrl(''); }} className="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer" /></div>
+                                            <div className="flex items-center gap-2"><hr className="flex-grow border-slate-200" /><span className="text-xs text-slate-400 font-medium">O</span><hr className="flex-grow border-slate-200" /></div>
+                                            <div><label className="block text-xs font-medium text-slate-500 mb-1">Enlace Externo (Google Drive)</label><input type="url" value={protocoloUrl} onChange={(e) => { setProtocoloUrl(e.target.value); setProtocoloFile(null); }} placeholder="https://drive.google.com/..." className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none" disabled={!!protocoloFile} /></div>
                                         </div>
                                     </div>
-
                                     <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
                                         <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg">Cancelar</button>
                                         <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-blue-600 text-white font-medium hover:bg-blue-700 rounded-lg disabled:opacity-50">{isSubmitting ? 'Guardando...' : 'Guardar'}</button>
@@ -891,92 +736,37 @@ export default function Dashboard() {
                                     <h3 className="text-lg font-bold text-slate-800">Editar Proyecto</h3>
                                 </div>
                                 <form onSubmit={handleActualizarProyecto} className="p-6 space-y-4 overflow-y-auto">
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Título</label>
-                                        <input type="text" required value={editTitulo} onChange={(e) => setEditTitulo(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Planteamiento del problema</label>
-                                        <textarea required rows="3" value={editPlanteamiento} onChange={(e) => setEditPlanteamiento(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Objetivo general</label>
-                                        <textarea required rows="2" value={editObjetivoGeneral} onChange={(e) => setEditObjetivoGeneral(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Objetivos Específicos</label>
-                                        <textarea required rows="2" value={editObjetivosEspecificos} onChange={(e) => setEditObjetivosEspecificos(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Hipótesis</label>
-                                        <textarea required rows="2" value={editDelimitacion} onChange={(e) => setEditDelimitacion(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
-                                    </div>
-
+                                    <div><label className="block text-sm font-medium text-slate-700 mb-1">Título</label><input type="text" required value={editTitulo} onChange={(e) => setEditTitulo(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" /></div>
+                                    <div><label className="block text-sm font-medium text-slate-700 mb-1">Planteamiento del problema</label><textarea required rows="3" value={editPlanteamiento} onChange={(e) => setEditPlanteamiento(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" /></div>
+                                    <div><label className="block text-sm font-medium text-slate-700 mb-1">Objetivo general</label><textarea required rows="2" value={editObjetivoGeneral} onChange={(e) => setEditObjetivoGeneral(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" /></div>
+                                    <div><label className="block text-sm font-medium text-slate-700 mb-1">Objetivos Específicos</label><textarea required rows="2" value={editObjetivosEspecificos} onChange={(e) => setEditObjetivosEspecificos(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" /></div>
+                                    <div><label className="block text-sm font-medium text-slate-700 mb-1">Hipótesis</label><textarea required rows="2" value={editDelimitacion} onChange={(e) => setEditDelimitacion(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" /></div>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-1">Cupos</label>
-                                            <input type="number" min="1" max="10" required value={editCupos} onChange={(e) => setEditCupos(parseInt(e.target.value))} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-1">Estado</label>
-                                            <select value={editEstado} onChange={(e) => setEditEstado(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-                                                <option value="Activo">Activo</option>
-                                                <option value="En preparación">En preparación</option>
-                                                <option value="Finalizado">Finalizado</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-1">Modalidad</label>
-                                            <select value={editModalidad} onChange={(e) => setEditModalidad(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-                                                {OPCIONES_MODALIDAD.map(m => <option key={m} value={m}>{m}</option>)}
-                                            </select>
-                                        </div>
+                                        <div><label className="block text-sm font-medium text-slate-700 mb-1">Cupos</label><input type="number" min="1" max="10" required value={editCupos} onChange={(e) => setEditCupos(parseInt(e.target.value))} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" /></div>
+                                        <div><label className="block text-sm font-medium text-slate-700 mb-1">Estado</label><select value={editEstado} onChange={(e) => setEditEstado(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"><option value="Activo">Activo</option><option value="En preparación">En preparación</option><option value="Finalizado">Finalizado</option></select></div>
+                                        <div><label className="block text-sm font-medium text-slate-700 mb-1">Modalidad</label><select value={editModalidad} onChange={(e) => setEditModalidad(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">{OPCIONES_MODALIDAD.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
                                     </div>
-
-                                    {/* EDICIÓN MÚLTIPLE DE CARRERAS CON CHECKBOXES */}
                                     <div>
                                         <div className="flex justify-between items-center mb-1.5">
                                             <label className="block text-sm font-semibold text-slate-700">Carreras Destino</label>
-                                            <button
-                                                type="button"
-                                                onClick={() => setEditCarreras(editCarreras.length === LISTA_CARRERAS.length ? [] : [...LISTA_CARRERAS])}
-                                                className="text-xs text-blue-600 hover:underline font-medium"
-                                            >
-                                                {editCarreras.length === LISTA_CARRERAS.length ? 'Deseleccionar todas' : 'Seleccionar todas (Multidisciplinario)'}
-                                            </button>
+                                            <button type="button" onClick={() => setEditCarreras(editCarreras.length === LISTA_CARRERAS.length ? [] : [...LISTA_CARRERAS])} className="text-xs text-blue-600 hover:underline font-medium">{editCarreras.length === LISTA_CARRERAS.length ? 'Deseleccionar todas' : 'Seleccionar todas (Multidisciplinario)'}</button>
                                         </div>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
                                             {LISTA_CARRERAS.map(c => (
                                                 <label key={c} className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer hover:text-blue-700 select-none">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={editCarreras.includes(c)}
-                                                        onChange={() => handleToggleCarreraEditar(c)}
-                                                        className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
-                                                    />
-                                                    <span>{c}</span>
+                                                    <input type="checkbox" checked={editCarreras.includes(c)} onChange={() => handleToggleCarreraEditar(c)} className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer" /><span>{c}</span>
                                                 </label>
                                             ))}
                                         </div>
                                     </div>
-
                                     <div className="pt-3 border-t border-slate-100">
                                         <label className="block text-sm font-bold text-slate-700 mb-2">Protocolo Oficial / Convocatoria</label>
                                         <div className="space-y-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Subir o reemplazar Archivo PDF</label>
-                                                <input type="file" accept=".pdf" onChange={(e) => { setEditProtocoloFile(e.target.files[0]); setEditProtocoloUrl(''); }} className="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <hr className="flex-grow border-slate-200" /><span className="text-xs text-slate-400 font-medium">O</span><hr className="flex-grow border-slate-200" />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Enlace Externo (Google Drive)</label>
-                                                <input type="url" value={editProtocoloUrl} onChange={(e) => { setEditProtocoloUrl(e.target.value); setEditProtocoloFile(null); }} placeholder="https://drive.google.com/..." className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none" disabled={!!editProtocoloFile} />
-                                            </div>
+                                            <div><label className="block text-xs font-medium text-slate-500 mb-1">Subir o reemplazar Archivo PDF</label><input type="file" accept=".pdf" onChange={(e) => { setEditProtocoloFile(e.target.files[0]); setEditProtocoloUrl(''); }} className="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer" /></div>
+                                            <div className="flex items-center gap-2"><hr className="flex-grow border-slate-200" /><span className="text-xs text-slate-400 font-medium">O</span><hr className="flex-grow border-slate-200" /></div>
+                                            <div><label className="block text-xs font-medium text-slate-500 mb-1">Enlace Externo (Google Drive)</label><input type="url" value={editProtocoloUrl} onChange={(e) => { setEditProtocoloUrl(e.target.value); setEditProtocoloFile(null); }} placeholder="https://drive.google.com/..." className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none" disabled={!!editProtocoloFile} /></div>
                                         </div>
                                     </div>
-
                                     <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
                                         <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg">Cancelar</button>
                                         <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-emerald-600 text-white font-medium hover:bg-emerald-700 rounded-lg disabled:opacity-50">{isSubmitting ? 'Actualizando...' : 'Actualizar'}</button>
@@ -986,6 +776,62 @@ export default function Dashboard() {
                         </div>
                     )}
                 </>
+            )}
+
+            {/* MODAL: EXPEDIENTE DEL ASESOR (VISTO POR EL ESTUDIANTE) */}
+            {isAsesorModalOpen && asesorSeleccionado && (
+                <div className="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
+                        <div className="bg-blue-700 px-6 py-4 flex justify-between items-center relative overflow-hidden">
+                            <div className="absolute -right-4 -top-4 w-24 h-24 bg-white opacity-10 rounded-full blur-xl"></div>
+                            <h3 className="text-lg font-bold text-white relative z-10 flex items-center gap-2">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                                Perfil del Asesor
+                            </h3>
+                            <button onClick={() => setIsAsesorModalOpen(false)} className="text-blue-200 hover:text-white font-bold text-xl relative z-10">✕</button>
+                        </div>
+                        <div className="p-6 bg-slate-50">
+                            <div className="flex flex-col items-center mb-6 text-center">
+                                {asesorSeleccionado.avatar_url ? (
+                                    <img src={asesorSeleccionado.avatar_url} className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-sm mb-3" alt="Avatar" />
+                                ) : (
+                                    <div className="w-20 h-20 rounded-full bg-blue-100 border-4 border-white shadow-sm flex items-center justify-center text-blue-700 font-bold text-2xl mb-3">
+                                        {asesorSeleccionado.nombre_completo?.substring(0,2).toUpperCase()}
+                                    </div>
+                                )}
+                                <h4 className="text-xl font-bold text-slate-800 leading-tight">{asesorSeleccionado.nombre_completo}</h4>
+                                <p className="text-sm font-semibold text-slate-500 mt-1">{asesorSeleccionado.departamento || 'Docente / Investigador'}</p>
+                            </div>
+
+                            <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 space-y-4">
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Contacto Institucional</p>
+                                    <p className="text-sm font-medium text-slate-700 break-all mb-1">📧 {asesorSeleccionado.correo_institucional}</p>
+                                    {asesorSeleccionado.telefono ? (
+                                        <a href={`https://wa.me/52${asesorSeleccionado.telefono.replace(/\D/g,'')}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md transition-colors mt-1">
+                                            WhatsApp Institucional
+                                        </a>
+                                    ) : (
+                                        <p className="text-sm font-medium text-slate-400">📱 Sin teléfono registrado</p>
+                                    )}
+                                </div>
+
+                                <div className="pt-3 border-t border-slate-100">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Ubicación / Cubículo (Asesorías)</p>
+                                    <p className="text-sm text-slate-700">{asesorSeleccionado.ubicacion_cubiculo || 'Ubicación no especificada.'}</p>
+                                </div>
+
+                                <div className="pt-3 border-t border-slate-100">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Líneas de Investigación</p>
+                                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{asesorSeleccionado.lineas_investigacion || 'No especificadas.'}</p>
+                                </div>
+                            </div>
+                            <div className="mt-6 flex justify-end">
+                                <button onClick={() => setIsAsesorModalOpen(false)} className="bg-slate-800 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-slate-900 transition-colors shadow-sm w-full">Cerrar Perfil</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
