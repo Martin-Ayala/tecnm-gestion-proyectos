@@ -73,9 +73,12 @@ export default function Dashboard() {
     const [isResidenteModalOpen, setIsResidenteModalOpen] = useState(false);
     const [residenteSeleccionado, setResidenteSeleccionado] = useState(null);
 
-    // NUEVO: Estados para Expediente del Asesor (Visto por el Estudiante)
+    // Estados para Expediente del Asesor (Visto por el Estudiante)
     const [isAsesorModalOpen, setIsAsesorModalOpen] = useState(false);
     const [asesorSeleccionado, setAsesorSeleccionado] = useState(null);
+
+    // NUEVO: Seguro contra accidentes para el Administrador
+    const [modoEdicionGlobal, setModoEdicionGlobal] = useState(false);
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -514,7 +517,26 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                <h3 className="text-lg font-bold text-slate-800 mb-6 border-b border-slate-200 pb-2">Catálogo General de Proyectos</h3>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 border-b border-slate-200 pb-2">
+                    <h3 className="text-lg font-bold text-slate-800">Catálogo General de Proyectos</h3>
+                    
+                    {/* NUEVO: SEGURO MODO EDICIÓN GLOBAL PARA ADMINISTRADOR */}
+                    {user?.rol === 'Administrador' && (
+                        <label className="flex items-center cursor-pointer gap-2 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-200 shadow-sm hover:bg-amber-100 transition-colors">
+                            <span className="text-xs font-bold text-amber-800">Modo Edición Global:</span>
+                            <div className="relative">
+                                <input 
+                                    type="checkbox" 
+                                    className="sr-only" 
+                                    checked={modoEdicionGlobal}
+                                    onChange={() => setModoEdicionGlobal(!modoEdicionGlobal)}
+                                />
+                                <div className={`block w-8 h-4 rounded-full transition-colors ${modoEdicionGlobal ? 'bg-amber-600' : 'bg-slate-300'}`}></div>
+                                <div className={`absolute left-0.5 top-0.5 bg-white w-3 h-3 rounded-full transition-transform ${modoEdicionGlobal ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                            </div>
+                        </label>
+                    )}
+                </div>
 
                 {loadingDatos ? (
                     <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 text-center text-slate-500">Cargando base de datos...</div>
@@ -558,8 +580,35 @@ export default function Dashboard() {
                                             <div className={`h-full transition-all duration-300 ${estaLleno ? 'bg-red-500' : 'bg-blue-600'}`} style={{ width: `${porcentaje}%` }} />
                                         </div>
                                     </div>
-                                    <div className="flex justify-center items-center border-t border-slate-100 pt-4 w-full gap-2">
-                                        <Link to={`/proyecto/${proyecto.id}`} className="text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors">Ver Detalle</Link>
+                                    <div className="flex flex-wrap justify-center items-center border-t border-slate-100 pt-4 w-full gap-3">
+                                        <Link to={`/proyecto/${proyecto.id}`} className="text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors">
+                                            Ver Detalle
+                                        </Link>
+
+                                        {/* NUEVO: CONTROLES DISPONIBLES SÓLO SI ERES EL AUTOR O EL ADMIN EN MODO EDICIÓN GLOBAL */}
+                                        {(user?.id === proyecto.investigador_id || (user?.rol === 'Administrador' && modoEdicionGlobal)) && (
+                                            <>
+                                                <span className="text-slate-300">|</span>
+                                                <button 
+                                                    onClick={() => abrirModalPostulaciones(proyecto)} 
+                                                    className="text-xs font-bold text-purple-600 hover:text-purple-800 transition-colors"
+                                                >
+                                                    Solicitudes
+                                                </button>
+                                                <button 
+                                                    onClick={() => abrirModalEdicion(proyecto)} 
+                                                    className="text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors"
+                                                >
+                                                    Editar
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleEliminar(proyecto.id)} 
+                                                    className="text-xs font-bold text-red-500 hover:text-red-700 transition-colors"
+                                                >
+                                                    Borrar
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             );
@@ -899,31 +948,31 @@ export default function Dashboard() {
                                             >
                                                 <svg className="w-3.5 h-3.5 fill-current text-emerald-600" viewBox="0 0 24 24">
                                                     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 00-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                                                </svg>
-                                                WhatsApp
-                                            </a>
-                                        </div>
-                                    ) : (
-                                        <p className="text-xs text-slate-400 italic mt-1">📱 Sin teléfono registrado</p>
-                                    )}
-                                </div>
-
-                                <div className="pt-3 border-t border-slate-100">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Ubicación / Cubículo (Asesorías)</p>
-                                    <p className="text-sm text-slate-700">{asesorSeleccionado.ubicacion_cubiculo || 'Ubicación no especificada.'}</p>
-                                </div>
-
-                                <div className="pt-3 border-t border-slate-100">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Líneas de Investigación</p>
-                                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{asesorSeleccionado.lineas_investigacion || 'No especificadas.'}</p>
-                                </div>
+                                            </svg>
+                                            WhatsApp
+                                        </a>
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-slate-400 italic mt-1">📱 Sin teléfono registrado</p>
+                                )}
                             </div>
-                            <div className="mt-6 flex justify-end">
-                                <button onClick={() => setIsAsesorModalOpen(false)} className="bg-slate-800 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-slate-900 transition-colors shadow-sm w-full">Cerrar Perfil</button>
+
+                            <div className="pt-3 border-t border-slate-100">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Ubicación / Cubículo (Asesorías)</p>
+                                <p className="text-sm text-slate-700">{asesorSeleccionado.ubicacion_cubiculo || 'Ubicación no especificada.'}</p>
                             </div>
+
+                            <div className="pt-3 border-t border-slate-100">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Líneas de Investigación</p>
+                                <p className="text-sm text-slate-700 whitespace-pre-wrap">{asesorSeleccionado.lineas_investigacion || 'No especificadas.'}</p>
+                            </div>
+                        </div>
+                        <div className="mt-6 flex justify-end">
+                            <button onClick={() => setIsAsesorModalOpen(false)} className="bg-slate-800 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-slate-900 transition-colors shadow-sm w-full">Cerrar Perfil</button>
                         </div>
                     </div>
                 </div>
+            </div>
             )}
         </div>
     );
