@@ -1,20 +1,24 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 const AuthContext = createContext({});
 
 export const AuthProvider = ({ children }) => {
-  // El loading ya arranca en 'true' para la primera carga de la página
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const hasLoadedUser = useRef(false);
 
   const fetchUserProfile = async (authUser) => {
-    // ❌ ELIMINAMOS el setLoading(true) de aquí para que no parpadee al cambiar de pestaña
-
     if (!authUser) {
+      hasLoadedUser.current = false;
       setUser(null);
       setLoading(false);
       return;
+    }
+
+    // Activa loading solo en el inicio de sesión inicial (sin parpadeos al cambiar de pestaña)
+    if (!hasLoadedUser.current) {
+      setLoading(true);
     }
 
     const { data, error } = await supabase
@@ -30,8 +34,8 @@ export const AuthProvider = ({ children }) => {
     } else {
       setUser(authUser);
     }
-    
-    // Al terminar, siempre apagamos el loading (y se quedará apagado)
+
+    hasLoadedUser.current = true;
     setLoading(false);
   };
 
@@ -49,7 +53,6 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider value={{ user, loading }}>
-      {/* 2. VITAL: Dejamos pasar a los children siempre, el guardián de App.jsx decidirá qué mostrar */}
       {children}
     </AuthContext.Provider>
   );
