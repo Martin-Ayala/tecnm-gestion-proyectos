@@ -830,7 +830,7 @@ export default function Dashboard() {
                                                             <p className="text-slate-500">Estado actual: <span className={`font-bold px-2 py-0.5 rounded-full ${postulacion.estado === 'Aceptado' ? 'bg-emerald-100 text-emerald-700' : postulacion.estado === 'Rechazado' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{postulacion.estado}</span></p>
                                                             {postulacion.documento_kardex_url && (
                                                                 <a href={postulacion.documento_kardex_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 bg-blue-50 px-2 py-1 rounded transition-colors">
-                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg> Ver Kardex
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg> Ver Carta de Solicitud
                                                                 </a>
                                                             )}
                                                         </div>

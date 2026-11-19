@@ -101,6 +101,8 @@ export default function ProyectoDetalle() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [mensaje, setMensaje] = useState('');
   const [kardexUrl, setKardexUrl] = useState('');
+  const [metodoKardex, setMetodoKardex] = useState('archivo');
+  const [kardexFile, setKardexFile] = useState(null);
 
   const [entregables, setEntregables] = useState([]);
   const [tituloTarea, setTituloTarea] = useState('');
@@ -229,15 +231,45 @@ export default function ProyectoDetalle() {
   const confirmarPostulacion = async (e) => {
     e.preventDefault();
     setPostulando(true);
+    let urlFinalDocumento = kardexUrl.trim();
+
+    if (metodoKardex === 'archivo') {
+      if (!kardexFile) {
+        alert("Por favor selecciona el archivo PDF de tu Carta de Solicitud.");
+        setPostulando(false);
+        return;
+      }
+      const ext = kardexFile.name.split('.').pop();
+      const fileName = `solicitud_${user.id}_${Date.now()}.${ext}`;
+      const { error: errorStorage } = await supabase.storage
+        .from('documentos')
+        .upload(`cartas_solicitud/${fileName}`, kardexFile);
+
+      if (errorStorage) {
+        alert(`Error al subir el documento: ${errorStorage.message}`);
+        setPostulando(false);
+        return;
+      }
+
+      const { data: dataUrl } = supabase.storage
+        .from('documentos')
+        .getPublicUrl(`cartas_solicitud/${fileName}`);
+      urlFinalDocumento = dataUrl.publicUrl;
+    } else if (!urlFinalDocumento) {
+      alert("Por favor introduce el enlace de tu Carta de Solicitud.");
+      setPostulando(false);
+      return;
+    }
+
     let errorOperacion;
 
     if (idPostulacionExistente && yaPostulado === 'Rechazado') {
       const { error } = await supabase.from('postulaciones').update({
-        mensaje_estudiante: mensaje, documento_kardex_url: kardexUrl, estado: 'Pendiente', fecha_postulacion: new Date().toISOString()
+        mensaje_estudiante: mensaje, documento_kardex_url: urlFinalDocumento, estado: 'Pendiente', fecha_postulacion: new Date().toISOString()
       }).eq('id', idPostulacionExistente);
       errorOperacion = error;
     } else {
-      const { data, error } = await supabase.from('postulaciones').insert([{ id_proyecto: id, id_estudiante: user.id, mensaje_estudiante: mensaje, documento_kardex_url: kardexUrl, estado: 'Pendiente' }]).select().single();
+      const { data, error } = await supabase.from('postulaciones').insert([{ id_proyecto: id, id_estudiante: user.id, mensaje_estudiante: mensaje, documento_kardex_url: urlFinalDocumento, estado: 'Pendiente' }]).select().single();
       if (data) setIdPostulacionExistente(data.id);
       errorOperacion = error;
     }
@@ -246,7 +278,10 @@ export default function ProyectoDetalle() {
     else {
       if (proyecto?.investigador_id) { await supabase.from('notificaciones').insert([{ usuario_id: proyecto.investigador_id, tipo: 'postulacion', mensaje: `El alumno ${user?.nombre_completo || 'un estudiante'} ha enviado o actualizado su postulación a tu proyecto: "${proyecto.titulo}".` }]); }
       alert(yaPostulado === 'Rechazado' ? "Postulación reenviada con éxito." : "Postulación enviada con éxito.");
-      setYaPostulado('Pendiente'); setIsModalOpen(false); 
+      setKardexUrl(urlFinalDocumento);
+      setKardexFile(null);
+      setYaPostulado('Pendiente');
+      setIsModalOpen(false); 
     }
     setPostulando(false);
   };
@@ -550,8 +585,47 @@ export default function ProyectoDetalle() {
                 {yaPostulado === 'Rechazado' && <p className="text-xs text-blue-600 mt-1">Has recuperado tu último mensaje. Puedes modificarlo antes de reintentar.</p>}
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Enlace al Kardex / Historial Académico</label>
-                <input type="url" required value={kardexUrl} onChange={(e) => setKardexUrl(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="https://drive.google.com/..." />
+                <label className="block text-sm font-medium text-slate-700 mb-2">Carta de Solicitud (PDF o Enlace)</label>
+                <div className="flex bg-slate-100 p-1 rounded-lg mb-3 border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setMetodoKardex('archivo')}
+                    className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${metodoKardex === 'archivo' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                  >
+                    📄 Subir Archivo PDF
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMetodoKardex('enlace')}
+                    className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${metodoKardex === 'enlace' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                  >
+                    🔗 Enlace Externo
+                  </button>
+                </div>
+
+                {metodoKardex === 'archivo' ? (
+                  <div>
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      required={!kardexUrl}
+                      onChange={(e) => setKardexFile(e.target.files[0])}
+                      className="w-full text-xs text-slate-600 border border-slate-300 rounded-lg p-2 bg-slate-50 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer"
+                    />
+                    {kardexUrl && !kardexFile && (
+                      <p className="text-xs text-emerald-600 mt-1.5">✓ Ya tienes un documento previo cargado (puedes subir uno nuevo para reemplazarlo).</p>
+                    )}
+                  </div>
+                ) : (
+                  <input
+                    type="url"
+                    required
+                    value={kardexUrl}
+                    onChange={(e) => setKardexUrl(e.target.value)}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                    placeholder="https://drive.google.com/..."
+                  />
+                )}
               </div>
               <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>

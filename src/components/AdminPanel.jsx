@@ -522,7 +522,7 @@ export default function AdminPanel({ onRefreshProyectos, user }) {
                                         <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase">
                                             <th className="p-3.5">Estudiante</th>
                                             <th className="p-3.5">Proyecto / Asesor</th>
-                                            <th className="p-3.5">Kárdex</th>
+                                            <th className="p-3.5">Carta de Solicitud</th>
                                             <th className="p-3.5">Estado</th>
                                             <th className="p-3.5 text-right">Dictamen</th>
                                         </tr>
