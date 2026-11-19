@@ -144,7 +144,13 @@ export default function ProyectoDetalle() {
       }
 
       if (user?.rol === 'Estudiante') {
-        const { data: dataPostulacion } = await supabase.from('postulaciones').select('id, estado, mensaje_estudiante, documento_kardex_url').eq('id_proyecto', id).eq('id_estudiante', user.id).single();
+        const { data: dataPostulacion } = await supabase
+          .from('postulaciones')
+          .select('id, estado, mensaje_estudiante, documento_kardex_url')
+          .eq('id_proyecto', id)
+          .eq('id_estudiante', user.id)
+          .maybeSingle();
+
         if (dataPostulacion) {
           setYaPostulado(dataPostulacion.estado); 
           setIdPostulacionExistente(dataPostulacion.id);
@@ -247,7 +253,10 @@ export default function ProyectoDetalle() {
     let califNum = null;
     if (nuevoEstado === 'Aprobado') {
       const califStr = prompt("Asigna una calificación (0 - 100):", tarea.calificacion || "");
-      if (califStr !== null && califStr.trim() !== '') califNum = parseInt(califStr);
+      if (califStr !== null && califStr.trim() !== '') {
+        const parsed = parseInt(califStr, 10);
+        if (!isNaN(parsed)) califNum = parsed;
+      }
     }
     const { error } = await supabase.from('tareas_entregables').update({ estado: nuevoEstado, observaciones_retroalimentacion: obs, calificacion: califNum }).eq('id', tarea.id);
     if (error) { alert("Error al actualizar la revisión."); console.error(error); } 

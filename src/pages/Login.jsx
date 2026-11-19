@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -22,6 +23,14 @@ export default function Login() {
   const [errorMsg, setErrorMsg] = useState('');
 
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  // Redirige automáticamente apenas AuthContext confirme el perfil del usuario
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [user, navigate]);
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -33,11 +42,6 @@ export default function Login() {
         // INICIO DE SESIÓN
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 500);
-        
       } else {
         // VALIDACIÓN DE CONTRASEÑA EN REGISTRO
         if (password !== confirmPassword) {
