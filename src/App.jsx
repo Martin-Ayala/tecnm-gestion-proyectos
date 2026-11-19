@@ -8,6 +8,7 @@ import RecuperarPassword from './pages/RecuperarPassword';
 import ActualizarPassword from './pages/ActualizarPassword';
 import Perfil from './pages/Perfil';
 import Directorio from './pages/Directorio';
+import Convocatorias from './pages/Convocatorias';
 
 const RutaProtegida = ({ children }) => {
   const { user, loading } = useAuth();
@@ -35,7 +36,8 @@ export default function App() {
           <Route path="/recuperar-password" element={<RecuperarPassword />} />
           <Route path="/actualizar-password" element={<ActualizarPassword />} />
           <Route path="/proyecto/:id" element={<ProyectoDetalle />} />
-          
+          <Route path="/convocatorias" element={<Convocatorias />} />
+
           <Route path="/perfil" element={
             <RutaProtegida>
               <Perfil />
