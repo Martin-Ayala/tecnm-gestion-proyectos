@@ -348,11 +348,28 @@ export default function Dashboard() {
             </nav>
 
             <main className="p-6 md:p-8 max-w-7xl mx-auto relative z-10">
-                <div className="flex justify-between items-center mb-6">
-                    <div><h2 className="text-2xl font-bold text-slate-800">Dashboard Analítico</h2><p className="text-slate-500 text-sm mt-1">Métricas operativas del periodo 2026</p></div>
-                    {(user?.rol === 'Investigador' || user?.rol === 'Administrador') && (
-                        <button onClick={() => setIsModalOpen(true)} className="bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 font-semibold transition-colors shadow-sm flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg> Nuevo Proyecto</button>
-                    )}
+                {/* HERO HEADER DEL DASHBOARD */}
+                <div className="relative bg-gradient-to-br from-blue-950 via-blue-900 to-indigo-900 text-white rounded-2xl p-6 md:p-8 mb-8 shadow-lg overflow-hidden">
+                    <div className="absolute -top-24 -right-24 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl pointer-events-none" />
+                    <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
+
+                    <div className="relative flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                            <span className="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-blue-100 text-xs font-semibold px-3 py-1 rounded-full mb-3 backdrop-blur-sm">
+                                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                Panel Operativo • Periodo 2026
+                            </span>
+                            <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Dashboard Analítico</h2>
+                            <p className="text-blue-100/85 text-sm mt-1">Métricas operativas y seguimiento de proyectos del TecNM Felipe Carrillo Puerto</p>
+                        </div>
+
+                        {(user?.rol === 'Investigador' || user?.rol === 'Administrador') && (
+                            <button onClick={() => setIsModalOpen(true)} className="bg-white text-blue-900 hover:bg-blue-50 px-5 py-2.5 rounded-xl font-bold transition-all shadow-md flex items-center gap-2 text-sm flex-shrink-0">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
+                                Nuevo Proyecto
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 {/* BANNER DESTACADO DE CONVOCATORIAS */}
@@ -408,10 +425,10 @@ export default function Dashboard() {
                 {!loadingDatos && proyectos.length > 0 && (
                     <div className="mb-12">
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center"><span className="text-slate-500 text-sm font-medium mb-1">Total Registrados</span><span className="text-3xl font-bold text-slate-800">{totalProyectos}</span></div>
-                            <div className="bg-white p-6 rounded-xl border border-emerald-100 shadow-sm flex flex-col justify-center"><span className="text-emerald-600 text-sm font-medium mb-1">Activos</span><span className="text-3xl font-bold text-emerald-700">{proyectosActivos}</span></div>
-                            <div className="bg-white p-6 rounded-xl border border-blue-100 shadow-sm flex flex-col justify-center"><span className="text-blue-600 text-sm font-medium mb-1">Finalizados</span><span className="text-3xl font-bold text-blue-700">{proyectosFinalizados}</span></div>
-                            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center"><span className="text-slate-500 text-sm font-medium mb-1">En preparación</span><span className="text-3xl font-bold text-slate-600">{proyectosPreparacion}</span></div>
+                            <div className="bg-white p-6 rounded-xl border border-slate-200 border-t-4 border-t-slate-700 shadow-sm flex flex-col justify-center"><span className="text-slate-500 text-sm font-medium mb-1">Total Registrados</span><span className="text-3xl font-bold text-slate-800">{totalProyectos}</span></div>
+                            <div className="bg-white p-6 rounded-xl border border-emerald-100 border-t-4 border-t-emerald-500 shadow-sm flex flex-col justify-center"><span className="text-emerald-600 text-sm font-medium mb-1">Activos</span><span className="text-3xl font-bold text-emerald-700">{proyectosActivos}</span></div>
+                            <div className="bg-white p-6 rounded-xl border border-blue-100 border-t-4 border-t-blue-600 shadow-sm flex flex-col justify-center"><span className="text-blue-600 text-sm font-medium mb-1">Finalizados</span><span className="text-3xl font-bold text-blue-700">{proyectosFinalizados}</span></div>
+                            <div className="bg-white p-6 rounded-xl border border-slate-200 border-t-4 border-t-slate-400 shadow-sm flex flex-col justify-center"><span className="text-slate-500 text-sm font-medium mb-1">En preparación</span><span className="text-3xl font-bold text-slate-600">{proyectosPreparacion}</span></div>
                         </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -426,9 +443,14 @@ export default function Dashboard() {
                 {/* ========================================== */}
                 {(user?.rol === 'Investigador' || user?.rol === 'Administrador') && (
                     <div className="mb-12">
-                        <div className="flex justify-between items-center mb-6 border-b border-slate-200 pb-2">
-                            <div><h3 className="text-lg font-bold text-slate-800">Mis Proyectos Asignados</h3><p className="text-xs text-slate-500">Propuestas bajo tu asesoría y autoría técnica</p></div>
-                            <span className="text-xs font-semibold bg-blue-100 text-blue-800 px-3 py-1 rounded-full">{misProyectosDocente.length} {misProyectosDocente.length === 1 ? 'proyecto' : 'proyectos'}</span>
+                        <div className="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-900 text-white px-6 py-4 rounded-xl shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+                            <div>
+                                <h3 className="text-lg font-extrabold tracking-tight">Mis Proyectos Asignados</h3>
+                                <p className="text-xs text-blue-200 mt-0.5">Propuestas bajo tu asesoría y autoría técnica</p>
+                            </div>
+                            <span className="text-xs font-bold bg-white/15 text-white border border-white/25 px-3.5 py-1 rounded-full backdrop-blur-sm">
+                                {misProyectosDocente.length} {misProyectosDocente.length === 1 ? 'proyecto' : 'proyectos'}
+                            </span>
                         </div>
 
                         {misProyectosDocente.length === 0 ? (
@@ -445,7 +467,7 @@ export default function Dashboard() {
                                     const porcentaje = Math.min(100, Math.round((aceptados / cuposTotales) * 100));
 
                                     return (
-                                        <div key={proyecto.id} className="bg-white p-6 rounded-xl shadow-sm border-2 border-blue-200 hover:shadow-md transition-all flex flex-col h-full relative">
+                                        <div key={proyecto.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 border-t-4 border-t-indigo-600 hover:shadow-md hover:-translate-y-0.5 transition-all flex flex-col h-full relative">
 
                                             {/* Cabecera del Proyecto */}
                                             <div className="flex flex-col items-center mb-2 gap-2 w-full text-center">
@@ -533,13 +555,22 @@ export default function Dashboard() {
                 {/* SECCIÓN: MIS POSTULACIONES (ESTUDIANTE) */}
                 {user?.rol === 'Estudiante' && (
                     <div className="mb-12">
-                        <h3 className="text-lg font-bold text-slate-800 mb-6 border-b border-slate-200 pb-2">Mis Postulaciones</h3>
+                        <div className="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-900 text-white px-6 py-4 rounded-xl shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+                            <div>
+                                <h3 className="text-lg font-extrabold tracking-tight">Mis Postulaciones</h3>
+                                <p className="text-xs text-blue-200 mt-0.5">Seguimiento del dictamen de tus solicitudes enviadas</p>
+                            </div>
+                            <span className="text-xs font-bold bg-white/15 text-white border border-white/25 px-3.5 py-1 rounded-full backdrop-blur-sm">
+                                {misPostulaciones.length} {misPostulaciones.length === 1 ? 'solicitud' : 'solicitudes'}
+                            </span>
+                        </div>
+
                         {misPostulaciones.length === 0 ? (
                             <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 text-center text-slate-500">Aún no te has postulado a ningún proyecto.</div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {misPostulaciones.map((post) => (
-                                    <div key={post.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col h-full">
+                                    <div key={post.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 border-t-4 border-t-blue-600 hover:shadow-md transition-all flex flex-col h-full">
                                         <div className="flex justify-between items-start mb-3 gap-4">
                                             <h3 className="font-bold text-lg text-slate-800 leading-tight">{post.proyecto?.titulo || 'Proyecto Eliminado'}</h3>
                                             <span className={`text-xs px-3 py-1 rounded-full font-bold border flex-shrink-0 ${post.estado === 'Aceptado' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : post.estado === 'Rechazado' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{post.estado}</span>
@@ -580,8 +611,35 @@ export default function Dashboard() {
                     <AdminPanel onRefreshProyectos={() => setRefresh(prev => prev + 1)} user={user} />
                 )}
 
+                {/* ENCABEZADO: CATÁLOGO GENERAL DE PROYECTOS */}
+                <div className="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-900 text-white px-6 py-4 rounded-xl shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 mt-6">
+                    <div>
+                        <h3 className="text-lg font-extrabold tracking-tight">Catálogo General de Proyectos</h3>
+                        <p className="text-xs text-blue-200 mt-0.5">
+                            {proyectosFiltrados.length} {proyectosFiltrados.length === 1 ? 'propuesta registrada' : 'propuestas registradas'} en el periodo
+                        </p>
+                    </div>
+
+                    {/* SEGURO MODO EDICIÓN GLOBAL PARA ADMINISTRADOR */}
+                    {user?.rol === 'Administrador' && (
+                        <label className="flex items-center cursor-pointer gap-2.5 bg-white/10 hover:bg-white/15 px-3.5 py-2 rounded-full border border-white/20 backdrop-blur-sm transition-colors">
+                            <span className="text-xs font-bold text-amber-200">Modo Edición Global:</span>
+                            <div className="relative">
+                                <input
+                                    type="checkbox"
+                                    className="sr-only"
+                                    checked={modoEdicionGlobal}
+                                    onChange={() => setModoEdicionGlobal(!modoEdicionGlobal)}
+                                />
+                                <div className={`block w-8 h-4 rounded-full transition-colors ${modoEdicionGlobal ? 'bg-amber-400' : 'bg-slate-600'}`}></div>
+                                <div className={`absolute left-0.5 top-0.5 bg-white w-3 h-3 rounded-full transition-transform ${modoEdicionGlobal ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                            </div>
+                        </label>
+                    )}
+                </div>
+
                 {/* BARRA DE BÚSQUEDA Y FILTRADO */}
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-4 mb-6 mt-6">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-4 mb-6">
                     <div className="relative w-full">
                         <input type="text" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar por proyecto, planteamiento o docente..." className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" />
                         <svg className="w-5 h-5 text-slate-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
@@ -608,27 +666,6 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 border-b border-slate-200 pb-2">
-                    <h3 className="text-lg font-bold text-slate-800">Catálogo General de Proyectos</h3>
-
-                    {/* SEGURO MODO EDICIÓN GLOBAL PARA ADMINISTRADOR */}
-                    {user?.rol === 'Administrador' && (
-                        <label className="flex items-center cursor-pointer gap-2 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-200 shadow-sm hover:bg-amber-100 transition-colors">
-                            <span className="text-xs font-bold text-amber-800">Modo Edición Global:</span>
-                            <div className="relative">
-                                <input
-                                    type="checkbox"
-                                    className="sr-only"
-                                    checked={modoEdicionGlobal}
-                                    onChange={() => setModoEdicionGlobal(!modoEdicionGlobal)}
-                                />
-                                <div className={`block w-8 h-4 rounded-full transition-colors ${modoEdicionGlobal ? 'bg-amber-600' : 'bg-slate-300'}`}></div>
-                                <div className={`absolute left-0.5 top-0.5 bg-white w-3 h-3 rounded-full transition-transform ${modoEdicionGlobal ? 'translate-x-4' : 'translate-x-0'}`}></div>
-                            </div>
-                        </label>
-                    )}
-                </div>
-
                 {loadingDatos ? (
                     <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 text-center text-slate-500">Cargando base de datos...</div>
                 ) : proyectos.length === 0 ? (
@@ -644,7 +681,7 @@ export default function Dashboard() {
                             const porcentaje = Math.min(100, Math.round((aceptados / cuposTotales) * 100));
 
                             return (
-                                <div key={proyecto.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all flex flex-col items-center text-center h-full">
+                                <div key={proyecto.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 border-t-4 border-t-blue-600 hover:shadow-md hover:-translate-y-0.5 transition-all flex flex-col items-center text-center h-full">
                                     <div className="flex flex-col items-center mb-2 gap-2 w-full">
                                         <span className={`text-xs px-2.5 py-1 rounded-full font-medium border flex-shrink-0 ${proyecto.estado?.toLowerCase() === 'activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : proyecto.estado?.toLowerCase() === 'finalizado' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
                                             {proyecto.estado || 'Activo'}
